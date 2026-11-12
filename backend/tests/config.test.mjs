@@ -41,3 +41,13 @@ test('proxy trust is opt-in and rejects permissive or ambiguous values', () => {
     assert.throws(() => parseEnvironment({ ...valid, TRUST_PROXY_LOOPBACK: value }), /Invalid environment configuration/);
   }
 });
+
+test('production requires DATABASE_URL and rejects invalid values without echoing them', () => {
+  for (const DATABASE_URL of [undefined, '', 'private-invalid-url']) {
+    assert.throws(() => parseEnvironment({ NODE_ENV: 'production', CORS_ALLOWED_ORIGINS: 'https://example.kz', DATABASE_URL }), error => {
+      assert.match(error.message, /DATABASE_URL/);
+      assert.equal(error.message.includes('private-invalid-url'), false);
+      return true;
+    });
+  }
+});

@@ -6,7 +6,7 @@ import { createApp } from '../dist/app.js';
 import { parseEnvironment } from '../dist/config/env.js';
 import { errorHandler } from '../dist/middleware/errors.js';
 
-const config = parseEnvironment({ NODE_ENV: 'production', CORS_ALLOWED_ORIGINS: 'https://example.kz' });
+const config = parseEnvironment({ NODE_ENV: 'production', DATABASE_URL: 'postgresql://test@localhost/test', CORS_ALLOWED_ORIGINS: 'https://example.kz' });
 
 async function serve(t, app) {
   const server = app.listen(0, '127.0.0.1');

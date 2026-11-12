@@ -7,8 +7,10 @@ import { errorHandler, HttpError } from './middleware/errors.ts';
 import { healthRouter } from './routes/health.ts';
 import { apiRouter } from './api/routes.ts';
 import type { Database } from './api/repository.ts';
+import type { ReadinessCheck } from './db/readiness.ts';
+import { readinessRouter } from './routes/ready.ts';
 
-export function createApp(config: Config, database?: Database) {
+export function createApp(config: Config, database?: Database, checkReady: ReadinessCheck = async () => false) {
   const app = express();
   app.disable('x-powered-by');
   app.set('env', config.NODE_ENV);
@@ -49,6 +51,7 @@ export function createApp(config: Config, database?: Database) {
   });
   app.use(express.json({ limit: '16kb', strict: true, inflate: false }));
   app.use('/api', healthRouter);
+  app.use('/api', readinessRouter(checkReady));
   app.use('/api', apiRouter(database));
   app.use((_request, _response, next) => next(new HttpError(404, 'NOT_FOUND', 'Route not found.')));
   app.use(errorHandler);

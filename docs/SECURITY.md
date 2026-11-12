@@ -29,8 +29,11 @@ tracking or extra personal-data fields were added. No schema/local role changes.
   contain no actual credentials. Ignore rules do not replace secret scanning/review.
   Local postgres superuser is for isolated development only. pg 8 password-file support
   emits a pg 9 removal warning; plan secure replacement before a major pg upgrade.
-- Health is liveness, not readiness. DB startup is lazy and DATABASE_URL optional for
-  health-only mode; deployment must require DB env and test real reads before traffic.
+- Stage 8.1: health remains liveness. Production requires DATABASE_URL, HTTPS CORS
+  origins and verify-full DB TLS; a bounded public-view probe must succeed before
+  listening. /api/ready repeats that probe, returning generic 503 on failure/shutdown.
+  Development/test retain optional-DB health-only mode. Full runtime grants still need
+  staging verification; readiness checks the view, not every write privilege.
 - No browser DB credentials, raw HTML rendering, remote image/tracking service or
   automatic contact retries. Favorites store only up to 50 public UUIDs. Free-text
   contact can still contain unsolicited sensitive information despite the UI warning.
@@ -56,42 +59,21 @@ use isolated CI with time/memory budgets and no production secrets on untrusted 
 Project maintainer must accept/review this dev-only risk before release; next review
 2026-11-18 or immediately when upstream compatible remediation appears.
 
-## Contact-message retention policy (operational proposal; automation NOT implemented)
+## Contact-message retention — Stage 8.2
 
-Purpose: reply to a voluntarily submitted support enquiry. Stored fields are name,
-email, message, UUID, created_at. No IIN/medical fields; never ask for them. Users see a
-warning not to submit sensitive content. This is not a legal compliance certification;
-operator must review Kazakhstan privacy/consent obligations before public launch.
+A tested cleanup command now exists: [contact retention runbook](CONTACT_RETENTION.md).
+Default 30 days from created_at, configurable 30–365 with privacy-owner approval; batch
+1–1000 (default 100), explicit --dry-run or --execute, dedicated retention connection and
+verified target identity. Dry-run is read-only; execute is transactional, parameterized
+and bounded. Logs contain counts only. Public API runtime deletion rights were not added.
 
-- **Delete every message 30 days after created_at**, including unanswered messages;
-  schema has no resolution flag. No indefinite exceptions/exported inbox copies.
-- A designated support operator reviews messages with separately controlled access;
-  application runtime cannot read personal fields or delete messages. Do not add an
-  admin/read endpoint for this policy. Assign a real owner and a safe contact channel
-  for verified deletion requests; neither an owner nor a channel is invented here.
-- Verified deletion requests: manually remove the matched message earlier after
-  proportionate identity verification; no unnecessary IIN collection. Record only
-  completion timestamp/count in operational records, never message/email/name/UUID.
-- Daily purge by a separately authorized retention operator, using parameterized SQL
-  with a server-calculated UTC cutoff, after DB identity verification:
-
-  ```sql
-  -- Example statement for an approved job, not executed by this review.
-  DELETE FROM balaqoldau.contact_messages WHERE created_at < $1::timestamptz;
-  ```
-
-  `$1` = run time minus 30 days; report affected count only. Operator/job credentials
-  need SELECT(created_at), DELETE on this table, not schema ownership; manual targeted
-  deletion additionally needs SELECT(id). Never use TRUNCATE/reset or expose credentials.
-  The created_at index already exists. No deletion command or scheduled job was added/run.
-- Encrypted backups expire within **30 days**; no permanent contact exports. A deleted
-  message can remain in a protected pre-deletion backup until expiry (up to 30 more days).
-  Before reopening a restored database, reapply retention and previously verified
-  deletions using a restricted restoration procedure; do not log personal payloads.
-- **Launch blocker:** assign owner, publish a clear privacy notice (purpose, 30-day live
-  retention, backup window, deletion channel), approve an auditable manual purge until
-  a tested scheduled job exists. Automation, deletion-request workflow, backup expiry
-  enforcement and operator tooling are not implemented by this repository.
+**Scheduling is not configured.** No automatic-deletion promise is made. The runbook
+documents least-privilege grants (not executed), authorized early deletion, failure/retry
+handling and operator responsibilities. Before launch, appoint an owner and request
+channel, publish an accurate policy, configure approved cleanup/backup expiry and test
+restore erasures. Proposed protected backup expiry remains 30 days; backup enforcement,
+early-deletion tooling and erasure-ledger automation are not implemented. The existing
+contact notice remains accurate and does not claim automatic deletion.
 
 ## QA limitations
 

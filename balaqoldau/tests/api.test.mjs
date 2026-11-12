@@ -8,6 +8,16 @@ const id = '11111111-1111-4111-8111-111111111111';
 const program = { id, slug: 'test-program', category: 'test-category', title: 'TEST бағдарлама', description: 'TEST', sourceUrl: 'https://example.com/source', sourceName: 'TEST', verifiedAt: '2026-11-11T00:00:00Z', ageMin: 0, ageMax: 17, deadline: null, applyUrl: null, isDemo: false, regions: ['test-region'], familyCategories: [] };
 const page = (data, number = 1, total = data.length, limit = 20) => ({ data, pagination: { page: number, limit, total, totalPages: Math.ceil(total / limit) } });
 
+test('contact email preserves valid plus addresses and rejects malformed local/domain parts', () => {
+  const fields = { senderName: 'TEST', message: 'TEST' };
+  for (const email of ['parent+club@example.kz', "o'connor@example.com", 'Parent.Name@Example.KZ']) {
+    assert.equal(validateContact({ ...fields, email }).email, undefined);
+  }
+  for (const email of ['a..b@example.kz', '.a@example.kz', 'a.@example.kz', 'a@-example.kz', 'a@example.c', 'a@exam_ple.kz']) {
+    assert.equal(typeof validateContact({ ...fields, email }).email, 'string');
+  }
+});
+
 test('search URL uses supported API filters only, including zero age and pagination', async () => {
   let requested;
   const api = createApi('/api', async (url, init) => { requested = [url, init]; return Response.json(page([program])); });

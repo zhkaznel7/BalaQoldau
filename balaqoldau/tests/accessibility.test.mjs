@@ -12,6 +12,17 @@ test('contrast calculation is symmetric and distinguishes AA normal text thresho
   assert.ok(contrastRatio(light, white) < 4.5);
 });
 test('brand action and form error colors have AA contrast on their surfaces', () => {
-  assert.ok(contrastRatio([101, 69, 206], [255, 255, 255]) >= 4.5);
-  assert.ok(contrastRatio([139, 38, 56], [255, 243, 241]) >= 4.5);
+  assert.ok(contrastRatio([7, 94, 168], [255, 255, 255]) >= 4.5);
+  assert.ok(contrastRatio([147, 43, 50], [255, 243, 243]) >= 4.5);
+});
+
+test('GovTech notice, muted text and form boundaries meet their contrast thresholds', () => {
+  assert.ok(contrastRatio([255, 255, 255], [16, 46, 80]) >= 4.5);
+  assert.ok(contrastRatio([82, 100, 119], [241, 245, 249]) >= 4.5);
+  assert.ok(contrastRatio([115, 132, 154], [255, 255, 255]) >= 3);
+});
+
+test('yellow CTA keeps navy text at WCAG AA contrast', () => {
+  assert.ok(contrastRatio([16, 46, 80], [244, 185, 66]) >= 4.5);
+  assert.ok(contrastRatio([16, 46, 80], [239, 173, 40]) >= 4.5);
 });

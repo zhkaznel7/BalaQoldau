@@ -1,0 +1,20 @@
+[
+  {
+    "source": "balaqoldau/public/balaqoldau.svg",
+    "output": "balaqoldau.svg",
+    "license": "LicenseRef-Project-Owned",
+    "sha256": "66ac57416866ba269207e251f9b83df571ef938700280d0be955c6292b4185d2"
+  },
+  {
+    "source": "balaqoldau/public/images/family-reading.svg",
+    "output": "images/family-reading.svg",
+    "license": "MIT",
+    "sha256": "015798a558bb7e43d0d3f5e13b9d2b030776c2ee51ae82244c1775515517c0af"
+  },
+  {
+    "source": "balaqoldau/public/THIRD_PARTY_NOTICES.txt",
+    "output": "THIRD_PARTY_NOTICES.txt",
+    "license": "ISC AND MIT",
+    "sha256": "b495047bd93a9b06913511076f504daba17d5bbeb3e0650f3bb53a4220329c57"
+  }
+]

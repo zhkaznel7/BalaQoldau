@@ -155,12 +155,16 @@ try {
   await send('Fetch.enable', { patterns: [{ urlPattern: origin + '/api/*', requestStage: 'Request' }] });
   await navigate('/results');
   await until('!!document.querySelector(".empty-results")');
-  assert.match(await evaluate('document.querySelector(".empty-results").textContent'), /Жарияланған бағдарлама табылмады/);
+  assert.match(await evaluate('document.querySelector(".empty-results").textContent'), /Қазір бұл санатта бағдарламалар жоқ/);
+  assert.equal(await evaluate('document.querySelectorAll(".request-error").length'), 0);
   assert.equal(await evaluate('document.querySelectorAll(".program-card").length'), 0);
   check(`real React → ${builtMode ? 'built-site QA proxy' : 'Vite proxy'} → Express/PostgreSQL; honest published-only empty state`);
 
   await navigate('/');
-  await until('!!document.querySelector(".hero-family-photo img") && document.querySelector(".hero-family-photo img").complete');
+  await until('!!document.querySelector(".hero-finder [name=q]")');
+  await until('document.querySelector(".hero-family-illustration")?.complete');
+  assert.equal(await evaluate('document.querySelector(".hero-family-illustration").naturalWidth>0'), true);
+  assert.equal(await evaluate('document.querySelectorAll(".request-error").length'), 0);
   await delay(500);
   const performanceSample = await evaluate(`({ mode: ${JSON.stringify(builtMode ? 'built-dist' : 'vite-development')}, ...window.__qaPerformance,
     fcpMs: performance.getEntriesByName('first-contentful-paint')[0]?.startTime ?? null,
@@ -168,6 +172,35 @@ try {
   await writeFile(path.join(cwd, `node_modules/.cache/stage7-performance-${builtMode ? 'built' : 'development'}.json`), JSON.stringify(performanceSample, null, 2));
   console.log('Local unthrottled home performance (not field CWV): ' + JSON.stringify(performanceSample));
   fixtureMode = true;
+  await navigate('/');
+  assert.equal(await evaluate('document.querySelectorAll(".hero #how ol li").length'), 3);
+  assert.equal(await evaluate('document.querySelectorAll(".hero .eyebrow,.service-directions svg,.category-icon").length'), 0);
+  for (const width of [1440, 375]) {
+    await send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: width < 760 });
+    assert.equal(await evaluate(`(() => { const search=document.querySelector('.discovery-panel').getBoundingClientRect(), guide=document.querySelector('#how').getBoundingClientRect(); return innerWidth>960 ? guide.left>=search.right : guide.top>=search.bottom; })()`), true);
+  }
+  check('compact portal puts an ordered three-step guide beside search on desktop and below on mobile');
+  await navigate('/#how');
+  await until('document.activeElement.id==="how"');
+  await navigate('/');
+  assert.match(await evaluate('document.querySelector(".platform-notice")?.textContent || ""'), /Тәуелсіз.*Мемлекеттік.*емес/);
+  assert.equal(await evaluate('document.querySelectorAll(".service-directions a").length'), 4);
+  assert.deepEqual(await evaluate('[...document.querySelectorAll(".service-directions a")].map(link=>new URL(link.href).searchParams.get("q"))'), ['жәрдемақы', 'тегін курс', 'үйірме', 'грант']);
+  await until('document.querySelectorAll(".hero-finder select[name=region] option").length===2');
+  await setValue('.hero-finder [name=q]', 'үйірме');
+  await setValue('.hero-finder [name=age]', '0');
+  await setValue('.hero-finder [name=region]', 'test-region');
+  await setValue('.hero-finder [name=category]', 'test-support');
+  await evaluate('document.querySelector(".hero-finder").requestSubmit()');
+  await until('location.pathname==="/results" && !!document.querySelector(".program-card")');
+  assert.equal(await evaluate('new URLSearchParams(location.search).get("q")'), 'үйірме');
+  assert.deepEqual(await evaluate('Object.fromEntries(new URLSearchParams(location.search))'), { region: 'test-region', age: '0', category: 'test-support', q: 'үйірме' });
+  check('independent-platform notice and homepage keyword search use the real API query contract');
+  await navigate('/');
+  await evaluate('document.querySelector(".service-directions a").click()');
+  await until('location.pathname==="/results" && !!document.querySelector(".program-card")');
+  assert.equal(await evaluate('new URLSearchParams(location.search).get("q")'), 'жәрдемақы');
+  check('service direction navigation searches without inventing API category slugs');
   if (process.env.UI_REVIEW) {
     const report = [];
     await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
@@ -217,6 +250,7 @@ try {
   check('pagination and search preserve filters and reset page');
 
   await navigate('/results?q=flaky'); await until('!!document.querySelector(".request-error")');
+  assert.match(await evaluate('document.querySelector(".request-error").textContent'), /Деректерді жүктеу мүмкін болмады\. Қайталап көріңіз/);
   flaky = 1;
   await evaluate('document.querySelector(".request-error button").click()'); await until('document.querySelectorAll(".program-card").length===2');
   check('API failure has localized error and working retry');
@@ -227,6 +261,8 @@ try {
   check('loading state and cancellation prevent stale search results');
 
   await navigate('/program/' + id1); await until('!!document.querySelector(".details-heading")');
+  assert.equal(await evaluate('document.querySelector(".details-content a").href'), 'https://example.com/test');
+  assert.match(await evaluate('document.querySelector(".details-content").textContent'), /Тексерілген күні:/);
   await evaluate('document.querySelector(".save-button").click()');
   await until('document.querySelector(".save-button").getAttribute("aria-pressed")==="true"');
   await navigate('/favorites'); await until('!!document.querySelector(".program-card")');
@@ -327,6 +363,7 @@ try {
       assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'), true, `${route} at ${width}`);
       const report = await evaluate(`(${inspectAccessibility.toString()})(${contrastRatio.toString()})`);
       assert.equal(report.h1Count, 1, `${route}: one h1`); assert.equal(report.mainCount, 1); assert.equal(report.language, 'kk');
+      assert.match(await evaluate('document.querySelector(".platform-notice").textContent'), /Мемлекеттік органның ресми сайты емес/);
       assert.deepEqual(report.unlabelled, []); assert.deepEqual(report.failures, [], `${route} at ${width}: computed contrast`);
       auditReports.push({ route, width, ...report });
     }
@@ -335,7 +372,7 @@ try {
   check('50 page/width combinations: no overflow, semantic headings/labels and computed WCAG AA text contrast');
   await navigate('/'); await until('document.querySelectorAll(".category-card").length===6');
   assert.equal(await evaluate('getComputedStyle(document.querySelector(".hero-copy")).animationName'), 'none');
-  assert.equal(await evaluate('getComputedStyle(document.querySelector(".hero-family-photo")).animationName'), 'none');
+  assert.equal(await evaluate('getComputedStyle(document.querySelector(".hero-finder")).animationName'), 'none');
   assert.equal(await evaluate('getComputedStyle(document.documentElement).scrollBehavior'), 'auto');
   check('prefers-reduced-motion disables entrance animation and smooth scrolling');
   await navigate('/results?q=slow'); await until('!!document.querySelector("[aria-busy=true]")');

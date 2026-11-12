@@ -1,8 +1,21 @@
-# BalaQoldau — Stage 7 QA және deployment дайындығы
+# BalaQoldau — Stage 7.6 GovTech ақпараттық порталы
 
 React + TypeScript интерфейсі нақты Express API-ге қосылған. Іздеу/details/favorites
 hardcoded DEMO тізімін қолданбайды. Development базасында тек екі DEMO draft бар;
 public нәтиженің бос болуы қалыпты. Frontend ешқандай бағдарлама жарияламайды.
+
+## Ағымдағы дизайн
+
+Тәуелсіз ақпараттық платформаға арналған white/navy/blue GovTech жүйесі: ықшам іздеу,
+оң жақтағы үш қадамдық нұсқаулық, мәтіндік каталог және results тізімі. Үлкен marketing
+тақырыптары/eyebrow/иконкалы санат карточкалары алынды; шағын түпнұсқа SVG оюы қосылды.
+Header/footer бұл мемлекеттік органның ресми сайты емес екенін анық көрсетеді.
+eGov логотипі/мемлекеттік рәміздер қолданылмайды. Төрт бағыт — `q` кілтсөз сілтемелері;
+нақты category/region әлі API-ден келеді. Ешбір бағдарлама ойдан қосылмаған.
+
+Ескі photo/atlas CSS орнына ортақ token/component stylesheet қолданылды. Қазір hero
+фотосурет жүктемейді; бұрынғы фото файлы/credits өзгертілмеді. Жаңа dependency/font жоқ.
+[Дизайн шешімдері](DESIGN_DIRECTION.md), [токендер](design-system/balaqoldau/MASTER.md).
 
 ## Іске қосу
 
@@ -62,7 +75,7 @@ proxy немесе build-time public API base және React Router fallback б�
   15s timeout, credentials omit/no-store, loading/empty/error/retry күйлері бар.
   React plain text-ті escape етеді, HTML ретінде көрсету қолданылмайды.
 - Бар Kazakh UI/responsive стиль сақталған; pagination/contact шағын CSS қосылды.
-  `src/data/programs.ts` тек legacy fixture тесттері/қолданылмайтын preview үшін;
+  `src/data/programs.ts` тек legacy fixture тесттері үшін;
   runtime беттер импорттамайды және production bundle-ға кірмейді.
 
 ## Stage 6 — интерфейс және accessibility
@@ -176,14 +189,12 @@ Windows PowerShell орындау саясаты npm скриптін бұғат
 ## Құрылымы
 
 - `src/App.tsx`: маршрутизация, беттер, ортақ интерфейс компоненттері және таңдаулылар күйі.
-- `src/components/Illustration.tsx`: сыртқы сурет қызметтерінсіз жасалған SVG иллюстрациясы.
-- `src/components/FamilyAtlas.tsx`: отбасы иллюстрациясын біріктіретін авторлық атлас композициясы.
+- `src/components/Home.tsx`: қолданыстағы GovTech басты беті және MIT family-reading.svg иллюстрациясы.
 - `src/components/SupportFinder.tsx`: басты беттегі өңір, жас және отбасы санаты бойынша ықшам іздеу.
 - `src/components/DiscoverySearch.tsx`: нәтижелердегі мәтіндік іздеу мен өңір сүзгісі.
-- `src/components/useScrollReveal.ts`: қозғалысты азайту параметрін ескеретін бір реттік scroll reveal.
 - `src/data/programs.ts`: дерек типтері, алты DEMO үлгі және асинхронды іздеу репозиторийі.
 - `src/index.css`: Tailwind CSS, түс тақырыбы, бейімделетін дизайн және қозғалысты азайту параметрі.
-- `src/refinements.css`: бар визуалдық стильді толықтыратын Bento торы, интеракциялар және типографика.
+- `src/refinements.css`: GovTech беттерінің бейімделетін стильдері.
 - `tests/programs.test.mjs`: іздеу өлшемдерінің қиылысуы, жас шекаралары, бос нәтижелер және дерек сәйкестігі.
 - `DESIGN_DIRECTION.md` және `design-system/balaqoldau/MASTER.md`: UI/UX Pro Max зерттеуі мен өнімге бейімделген дизайн шешімдері.
 

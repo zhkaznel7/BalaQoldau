@@ -57,7 +57,7 @@ export default function Contact() {
     } finally { if (request.current === controller) request.current = null; }
   }
   return <div className="container inner-page">
-    <div className="page-intro"><span className="eyebrow">БАЙЛАНЫС</span><h1 id="contact-heading">Бізге хабарласыңыз</h1><p>Сұрағыңызды немесе ұсынысыңызды жіберіңіз.</p></div>
+    <div className="page-intro"><h1 id="contact-heading">Бізге хабарласыңыз</h1><p>Сұрағыңызды немесе ұсынысыңызды жіберіңіз.</p></div>
     <div className="contact-layout"><form className="search-form contact-form" onSubmit={submit} noValidate aria-labelledby="contact-heading" aria-describedby="contact-privacy" aria-busy={status === 'pending'}>
       <p id="contact-privacy">Атыңыз, email және хабарламаңыз серверге жіберіледі. ЖСН, медициналық мәліметтер мен құпия деректерді жібермеңіз.</p>
       <p className="field-hint">Барлық өрісті толтырыңыз.</p>

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { validateContact } from '../../balaqoldau/src/api/contact.ts';
 import { once } from 'node:events';
 import { createApp } from '../dist/app.js';
 import { parseEnvironment } from '../dist/config/env.js';
@@ -11,9 +12,29 @@ test('pagination and search schemas produce bounded typed defaults', () => {
   assert.deepEqual(programQuery.parse({ age: '0', q: '  TEST  ', category: 'test-category' }),
     { page: 1, limit: 20, age: 0, q: 'TEST', category: 'test-category' });
 });
+
+test('text validation preserves control-character rules without disabling lint', () => {
+  for (const code of [...Array.from({ length: 32 }, (_, i) => i), 127]) {
+    const value = 'a' + String.fromCharCode(code) + 'b';
+    assert.equal(programQuery.safeParse({ q: value }).success, false);
+    assert.equal(contactBody.safeParse({ senderName: value, email: 'test@example.com', message: 'TEST' }).success, false);
+    assert.equal(contactBody.safeParse({ senderName: 'TEST', email: 'test@example.com', message: value }).success, [9, 10, 13].includes(code));
+  }
+});
 for (const input of [{ page: '0' }, { page: '10001' }, { limit: '51' }, { age: '18' }, { age: '-1' }, { age: '1.5' }, { age: '' }, { page: ['1', '2'] }, { category: "x' OR 1=1--" }, { region: '*' }, { q: 'x'.repeat(201) }, { q: '\u0000' }, { status: 'draft' }]) {
   test(`rejects untrusted program query ${JSON.stringify(input)}`, () => assert.equal(programQuery.safeParse(input).success, false));
 }
+test('frontend email validation matches the authoritative backend schema', () => {
+  const emails = ['test@example.com', 'Parent+club@Example.KZ', "o'connor@example.com", 'a_b@sub.example.kz',
+    'a..b@example.com', '.a@example.com', 'a.@example.com', 'a@-example.com', 'a@exam_ple.com',
+    'a@example.c', 'a@example.123', 'ата@example.kz', 'a@localhost', 'a b@example.com',
+    'a@example.com\n', '', 'a'.repeat(240) + '@example.com', 'a'.repeat(242) + '@example.com', 'a'.repeat(243) + '@example.com'];
+  for (const email of emails) {
+    const input = { senderName: 'TEST', email, message: 'TEST' };
+    assert.equal(!validateContact(input).email, contactBody.safeParse(input).success, 'email contract mismatch');
+  }
+});
+
 test('contact accepts only bounded explicit fields and valid email', () => {
   assert.deepEqual(contactBody.parse({ senderName: ' TEST ', email: 'test@example.com', message: ' Hello ' }),
     { senderName: 'TEST', email: 'test@example.com', message: 'Hello' });

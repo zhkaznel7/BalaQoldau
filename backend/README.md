@@ -1,4 +1,27 @@
-# BalaQoldau backend — Stages 2–7
+# BalaQoldau backend — Stage 8.2
+
+## Stage 8.2 — Contact privacy & retention
+
+Қолданыстағы contact API/form/schema өзгермеді. Жаңа cleanup CLI: default **30 күн**,
+configurable **30–365**, batch default **100**, maximum **1000**, бір іске қосуда бір batch.
+`created_at < PostgreSQL cutoff`: дәл шекарадағы жазба сақталады. Файлға/логқа тек counts
+шығады. Scheduling қосылмаған; автоматты жою operational деп мәлімделмейді.
+
+`RETENTION_DATABASE_URL` (бөлек оператор connection, DATABASE_URL fallback жоқ) және
+`RETENTION_EXPECTED_DATABASE` қажет. URL және нақты DB атауы сәйкес болуы тиіс;
+balaqoldau_db/system DB тыйым салынған. RETENTION_DAYS/RETENTION_BATCH_SIZE bounds
+валидациядан өтеді. Нақты .env/credentials-ті қайта жазбаңыз.
+
+```powershell
+npm.cmd run build
+npm.cmd run contact:cleanup -- --dry-run
+# Тек оператор target/dry-run нәтижесін тексеріп, нақты жоюды мақұлдағаннан кейін:
+npm.cmd run contact:cleanup -- --execute
+```
+
+Execute нақты dev/production дерегінде осы stage кезінде іске қосылған жоқ. Толық
+[retention/deletion/scheduling runbook](../docs/CONTACT_RETENTION.md). Production TLS және
+least-privilege retention login оператор тарапынан бөлек тексеріледі; рөлдер өзгертілмеді.
 
 Бөлек Node.js + Express API және PostgreSQL дерекқор қабаты. DATABASE_URL берілсе,
 HTTP сервері бір pool құрады; shutdown кезінде оны жабады. React frontend API-ге қосылған.
@@ -30,6 +53,10 @@ Production ортасында `NODE_ENV=production`, `HOST`, `PORT`, нақты
 process environment файлдағы мәндерден басым. Қате конфигурация сервер іске
 қосылмай тұрып exit 1 қайтарады; мәндер мен stack trace журналға шықпайды.
 
+Production үшін `DATABASE_URL` міндетті, CORS origins тек HTTPS болуы тиіс.
+DB TLS `verify-full` режимін талап етеді. Алғашқы readiness probe өтпесе сервер
+порт ашпайды, pool жабылып exit 1 болады. Development/test health-only режимі сақталған.
+
 ```powershell
 npm.cmd test
 npm.cmd audit
@@ -43,11 +70,29 @@ npm.cmd audit --omit=dev
 - `src/config/env.ts`: Zod environment валидациясы.
 - `src/app.ts`: желі портын ашпайтын Express factory және middleware реті.
 - `src/routes/health.ts`: `GET /api/health` → 200 `{"status":"ok"}`.
+- `src/routes/ready.ts`, `src/db/readiness.ts`: bounded PostgreSQL readiness.
 - `src/middleware/errors.ts`: орталық JSON error handler.
-- `src/server.ts`: HTTP startup, уақыт шектеулері, SIGINT/SIGTERM shutdown.
+- `src/server.ts`, `src/lifecycle.ts`: fail-closed startup, HTTP/pool shutdown.
 - `tests/`: localhost HTTP, environment және startup тесттері; сыртқы сервис қажет емес.
 
 Health тек процесс жауап бере алатынын көрсетеді; дерекқор readiness тексеруі емес.
+`GET /api/ready` → 200 `{"status":"ready"}` тек DB probe сәтті болғанда.
+DB жоқ/қолжетімсіз/schema permission қатесі/timeout/shutdown → 503:
+`{"error":{"code":"NOT_READY","message":"Service is not ready."}}`.
+Probe connection алу мен query үшін жалпы **2000 ms** deadline қолданады. Тек
+`SELECT id FROM balaqoldau.published_programs LIMIT 0` орындалады: connection,
+view/migration және view SELECT рұқсатын тексереді, бағдарлама дерегін оқымайды.
+Бос каталог дайын болып саналады. Қатар келген probes бір in-flight жұмысты бөліседі;
+сәтті нәтиже ұзақ сақталмайды. Timeout-та client destroy, кеш checkout та destroy;
+күтудегі жұмыс аяқталғанша жаңа checkout жасалмайды. Pool connection timeout қосымша 3s.
+Бұл барлық taxonomy/contact құқықтарын не backup күйін толық тексермейді: төмендегі
+least-privilege staging drill әлі міндетті. Probe нәтижесі — сол сәттегі күй ғана.
+Public requests пен health readiness SQL орындамайды. Operator readiness probe-ін
+5–10 секунд аралығымен баптасын; CORS/rate limiting/no-store/security headers сақталған.
+SIGTERM/SIGINT: readiness false, HTTP drain, pool.end; қайталанған shutdown idempotent.
+10s shutdown deadline асса процесс қауіпсіз жалпы хабармен exit 1 болады. Service manager
+SIGTERM және кемінде 15s stop timeout берсін. Windows тесттері process.emit арқылы
+signal handlers-ті тексереді; нақты hosting OS signal delivery staging-де тексеріледі.
 Query параметрлері қабылданбайды (400); HEAD қолдау бар. Қате форматы:
 `{"error":{"code":"VALIDATION_ERROR","message":"Invalid request input."}}`.
 Басқа кодтар: 403 `CORS_FORBIDDEN`, 404 `NOT_FOUND`, 413 `PAYLOAD_TOO_LARGE`,
@@ -159,7 +204,7 @@ Development: екі DEMO draft, public view бос. Test database: жеті ке
   қабылданбайды: `sslmode` арқылы TLS тексеруін айналып өтуге жол бермейді.
   Production режимінде `DB_SSL_MODE=verify-full` міндетті, certificate verification
   өшірілмейді. Жеке CA үшін `NODE_EXTRA_CA_CERTS` арқылы CA файлын беріңіз.
-  HTTP server үшін DATABASE_URL optional (health-only жұмысын сақтау үшін);
+  HTTP server үшін DATABASE_URL development/test-та optional, production-да міндетті;
   DB командалары үшін міндетті. DB_SSL_MODE DB factory шекарасында тексеріледі.
 - `src/db/pool.ts`: бір process үшін қайта қолданылатын pool factory (max 5),
   3 секунд connection timeout, statement/query/lock timeout. Caller pool-ды бір рет
@@ -247,7 +292,8 @@ IIN/медициналық мәлімет немесе құпия жіберме
 `{"error":{"code":"...","message":"..."}}`; input echo/stack trace жоқ.
 400 — invalid input; 404 — жоқ/жарияланбаған program; 405 + Allow — қате әдіс;
 415 — қате media type; 429 — rate limit; 500 — ішкі/DB қате.
-DATABASE_URL болмаса health жұмыс істейді, жарамды DB API сұрауы 503 қайтарады.
+Development/test-та DATABASE_URL болмаса health жұмыс істейді, ready және жарамды
+DB API сұрауы 503 қайтарады; production мұндай конфигурациямен іске қосылмайды.
 Барлық SQL дерек мәндері параметрленген; identifiers және SELECT fragments
 тек repository ішіндегі тұрақтылар. Schema/migrations өзгертілмеді.
 
@@ -255,7 +301,7 @@ API файлы: `src/api/{schemas,repository,routes}.ts`; pool app factory-ге 
 Production role-ға қосымша contact_messages INSERT және RETURNING үшін id SELECT
 қажет; contact message/email/name SELECT бермеңіз. Local postgres суперпайдаланушысын
 production-ға қолданбаңыз. Сұрау timeout, TLS, proxy және shared limiter шектері
-алдыңғы бөлімдердегідей. Contact retention policy автоматты түрде жасалған жоқ.
+алдыңғы бөлімдердегідей. Stage 8.2 cleanup командасы бар, scheduling әлі қосылмаған.
 
 Тексеру: `npm.cmd test` және `npm.cmd run test:db`. API integration тек test database-ке
 қосылып, published/draft/verified және transient DEMO fixtures қолданады; барлық
@@ -276,5 +322,5 @@ Contact form қолданыстағы POST endpoint-ті қолданады. Bac
 келісімшарты өзгерген жоқ; backend 71/71 және DB integration 12/12 қайта өтті.
 Stage 7: [deployment/least-privilege/migration/rollback](../docs/DEPLOYMENT.md),
 [security/contact retention](../docs/SECURITY.md), production env мысалы —
-`.env.production.example`. Рөлдер/retention automation жасалған жоқ; нақты verification
+`.env.production.example`. Рөлдер өзгермеді; cleanup command бар, scheduling қосылмады; нақты verification
 нәтижесі [PROGRESS](../PROGRESS.md) ішінде. Production іске қосылған жоқ.

@@ -24,6 +24,12 @@ const environmentSchema = z.object({
   RATE_LIMIT_WINDOW_MS: integer('60000', 2147483647),
   RATE_LIMIT_MAX: integer('100', 100000),
   DATABASE_URL: databaseUrlSchema.optional(),
+}).superRefine((value, context) => {
+  if (value.NODE_ENV !== 'production') return;
+  if (!value.DATABASE_URL) context.addIssue({ code: 'custom', path: ['DATABASE_URL'], message: 'Required in production' });
+  if (value.CORS_ALLOWED_ORIGINS.some(item => !item.startsWith('https://'))) {
+    context.addIssue({ code: 'custom', path: ['CORS_ALLOWED_ORIGINS'], message: 'HTTPS required in production' });
+  }
 });
 
 export type Config = z.infer<typeof environmentSchema>;

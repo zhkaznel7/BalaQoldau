@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="144" viewBox="0 0 320 144" fill="none">
+<!--
+Original vector artwork created for BalaQoldau. No stock or third-party artwork.
+SPDX-License-Identifier: MIT
+Copyright (c) 2026 BalaQoldau contributors
+Permission is hereby granted, free of charge, to any person obtaining a copy of this
+artwork and associated documentation files (the "Artwork"), to deal in the Artwork
+without restriction, including without limitation the rights to use, copy, modify,
+merge, publish, distribute, sublicense, and/or sell copies of the Artwork, and to
+permit persons to whom the Artwork is furnished to do so, subject to the following
+conditions: The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Artwork.
+THE ARTWORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE ARTWORK
+OR THE USE OR OTHER DEALINGS IN THE ARTWORK.
+-->
+<circle cx="165" cy="69" r="64" fill="#F4B942" opacity=".18"/>
+<path d="M34 132h252" stroke="#142B47" stroke-width="2" stroke-linecap="round"/>
+<path d="M58 129V98c0-20 17-34 37-34s37 14 37 34v31" fill="#075EA8"/>
+<path d="M188 129V98c0-20 17-34 37-34s37 14 37 34v31" fill="#075EA8"/>
+<circle cx="95" cy="45" r="23" fill="white" stroke="#142B47" stroke-width="2"/>
+<path d="M72 43c-2-28 44-33 46-3-11 0-21-5-25-12-3 9-12 14-21 15Z" fill="#142B47"/>
+<circle cx="225" cy="45" r="23" fill="white" stroke="#142B47" stroke-width="2"/>
+<path d="M203 41c-2-28 47-29 44 2l-10-7-8-9-8 9-18 5Z" fill="#142B47"/>
+<path d="M89 50q6 7 12 0m118 0q6 7 12 0" stroke="#142B47" stroke-width="2" stroke-linecap="round"/>
+<path d="M128 130v-23c0-19 14-30 32-30s32 11 32 30v23" fill="#F4B942"/>
+<circle cx="160" cy="69" r="19" fill="white" stroke="#142B47" stroke-width="2"/>
+<path d="M141 66c-2-24 37-27 38-1-9-1-16-5-21-12-3 7-8 11-17 13Z" fill="#142B47"/>
+<path d="M155 74q5 5 10 0M87 99l43 20m103-20-43 20" stroke="#142B47" stroke-width="3" stroke-linecap="round"/>
+<path d="m123 106 37 7 37-7v27l-37 7-37-7v-27Z" fill="white" stroke="#142B47" stroke-width="2" stroke-linejoin="round"/>
+<path d="M160 113v27m-27-24 17 3m-17 5 17 3m20-8 17-3m-17 11 17-3" stroke="#075EA8" stroke-width="2" stroke-linecap="round"/>
+</svg>

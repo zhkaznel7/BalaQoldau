@@ -9,6 +9,7 @@ Express/TypeScript API, PostgreSQL. Public API тек `published AND NOT is_demo
 - [Deployment, rollback және least-privilege құқықтар](docs/DEPLOYMENT.md)
 - [Қауіпсіздік шолуы және contact retention](docs/SECURITY.md)
 - [Нақты тексеру нәтижелері](PROGRESS.md)
+- [CI және release қауіпсіздігі](docs/RELEASE_CHECKLIST.md)
 
 Node.js 24+ қажет. Екі бөлек npm lockfile бар; әр жобада `npm ci --ignore-scripts`
 қолданылады. `.env` бар болса қайта жазбаңыз. Құпияларды frontend `VITE_*` мәндеріне
@@ -16,5 +17,7 @@ Node.js 24+ қажет. Екі бөлек npm lockfile бар; әр жобада
 Production frontend — `balaqoldau/dist`, backend — `backend/dist/server.js`.
 Vite dev/preview сервері production сервері ретінде қолданылмайды.
 
-Stage 7 жергілікті QA мен deployment дайындауын қамтиды. Production іске қосылған жоқ;
+Stage 8.1: `/api/health` — lightweight liveness, `/api/ready` — bounded DB readiness.
+Production міндетті DB/config тексеруінен өтпей HTTP порт ашпайды. Нақты startup/shutdown
+келісімшарты backend README ішінде. Production іске қосылған жоқ;
 жария іске қосу алдындағы қолмен орындалатын міндеттер deployment нұсқаулығында.

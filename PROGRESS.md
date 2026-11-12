@@ -1,6 +1,6 @@
 # BalaQoldau — даму барысы
 
-Ағымдағы күй: Stage 7 жергілікті Final QA, Security және Deployment Readiness шолуы аяқталды (2026-11-11). Public launch әлі мақұлданған/орындалған жоқ; төмендегі launch gates міндетті. Ертерек жазбалар тарихи есеп ретінде сақталған.
+Ағымдағы күй: Stage 8.2 Contact Privacy & Retention аяқталды (2026-11-12): cleanup командасы бар, scheduling қосылмаған. Public launch орындалған жоқ; production/оператор талаптары сақталады. Stage 8.3 басталған жоқ. Ертерек жазбалар тарихи есеп ретінде сақталған.
 
 ## Stage 1
 
@@ -359,3 +359,386 @@ owner/privacy notice/deletion channel және күнделікті manual purge
 және production mobile performance қажет. Толық WCAG сәйкестігі мәлімделмейді.
 Dev-only audit deferral maintainer review-ды талап етеді; тәуелсіз release review қажет.
 Stage 7-ден кейінгі әзірлеу, push/deploy басталған жоқ.
+
+## Stage 7.5 — Independent Kazakhstan GovTech UI (2026-11-12)
+
+### Дизайн және іске асыру
+
+- README/PROGRESS және frontend UI Engineering, installed UI/UX Pro Max, TDD/review
+  нұсқаулары қаралды. Бұрынғы desktop UI screenshot бағаланды. eGov public reference
+  ашылды, бірақ text-only response шектеулі болды: дизайн берілген талаптарға сай
+  дербес жасалды, eGov layout/logo/seal көшірілген жоқ. Unslop бұрынғыдай қолжетімді емес.
+- White/navy/blue/gray tokens, 4–6px corners, restrained borders, Segoe UI/system sans,
+  бірізді typography/spacing. Барлық маршруттар: home/find/results/details/favorites/
+  contact, loading/empty/error/success күйлері ортақ стильге көшті.
+- Header/footer: «Тәуелсіз ақпараттық платформа. Мемлекеттік органның ресми сайты емес».
+  Мемлекеттік рәміз/endorsement, жалған verification badge/санақ/бағдарлама қосылған жоқ.
+  Lucide кәсіби белгішелері және бұрынғы өз heart branding-і сақталды, favicon көкке көшті.
+- Home бөлек Home.tsx компонентіне шығарылды. Prominent keyword search қазір `q` береді;
+  өңір/жас/category фильтрлері бірге жұмыс істейді. Төрт support direction тек q shortcut:
+  жәрдемақы / тегін курс / үйірме / грант. Backend category slug ойдан жасалмады;
+  нақты category/region тізімдері API-ден келеді, public record жоқта honest empty state бар.
+- Source URL/sourceName және нақты verifiedAt details-та сақталған; source link пен
+  тексерілген күн browser regression assertion арқылы тексерілді. Published label
+  тек API visibility-ді білдіреді, мемлекеттік мақұлдау емес.
+- Ескі photo/atlas layout пен қайталанған styling қабаты reset + ортақ stylesheet-пен
+  алмастырылды; декоративті reveal observer App-тан алынды. CSS gzip **12.20 → 6.23 kB**,
+  JS gzip **97.35 → 96.84 kB**. Жаңа dependency/font/image жоқ.
+- Фото енді DOM-да жоқ және жүктелмейді. Public файл/credits өзгертілмеген: Vite public
+  assets көшіретіндіктен фото лицензиясын растау не approved removal әлі launch gate.
+
+### Нақты тексерулер
+
+- Frontend `npm run build`: **PASS**, exit 0; соңғы JS 310.48 kB / gzip 96.84 kB,
+  CSS 26.95 kB / gzip 6.23 kB.
+- `npm run lint`: **PASS**, exit 0. Ешбір lint rule/suppression өшірілмеді.
+- `npm test`: **27/27 PASS**, skipped 0, exit 0. GovTech notice/text/field contrast test
+  қосылды, palette AA token assertions жаңартылды; API/contact/navigation tests сақталды.
+- Browser development mode: **22/22 PASS**, exit 0. Built dist (Vite-сіз) mode:
+  **23/23 PASS**, exit 0. Нақты React → Express/PostgreSQL GET және бос public result
+  расталды. Browser contact fixture, бұрынғы integration contracts сақталған; бұл кезең
+  нақты DB contact жазбасын жасаған жоқ.
+- Жаңа behavioral test notice жоқта алдымен **FAIL** болды; кейін notice/home keyword
+  search/q-direction implementation арқылы PASS. q + region + category + age 0 бірге
+  тексерілді. Existing filters/pagination/reset, favorites, retry/stale abort, form pending/
+  validation/error/manual retry/success, DEMO/draft rejection, details/back navigation өтті.
+- 10 бет/күй × 5 ен **320/375/768/1024/1440 = 50** комбинация: overflow/label/heading
+  regression жоқ, **1490 computed text checks**, contrast failures 0. Тәуелсіздік
+  ескертуі барлық 50 жағдайда көрінеді. Алты ұзын API category атауы overlap жасамады.
+- Keyboard Tab/Enter/Escape, skip-link, route focus/title, contact error summary,
+  focus retention, Chrome AX names, reduced motion тексерулері өтті. Бұл full WCAG
+  certification емес; NVDA/VoiceOver қолмен сынағы орындалған жоқ.
+- Алты маршруттың 1440/320 screenshots жасалды және визуалды шолу өтті. Artifacts:
+  `balaqoldau/node_modules/.cache/stage6-govtech-final-*.png`,
+  `stage6-govtech-final.json`, `stage6-accessibility.json` (ignored).
+- Built home жергілікті unthrottled sample: LCP/FCP **112 ms**, CLS **0**, long tasks **0**;
+  field CWV/INP немесе production performance кепілдігі емес.
+- `git diff --check`: **PASS**, тек line-ending ақпараттық warnings. Backend source/API,
+  SQL/schema, env, dependencies/lockfiles өзгерген жоқ; DB migration/seed/integration
+  жазбалары іске қосылған жоқ. Backend tests/audits бұл frontend-only кезеңде қайта
+  орындалмады, Stage 7 нәтижелері тарихи есепте қалады.
+- Branch **development**, main **b84e459c0d808729d606c2dbedfc061bf75aa72e** сақталды.
+  balaqoldau_db/unrelated DB-ге қосылу/өзгерту, push/merge/deploy болмады.
+
+### Өзгерген файлдар және шектеулер
+
+`balaqoldau/src/App.tsx`, жаңа `src/components/Home.tsx`, `SupportFinder.tsx`,
+`src/index.css`, `src/refinements.css`, `index.html`, `public/balaqoldau.svg`,
+`tests/{accessibility.test,browser-integration}.mjs`, `README.md`, `DESIGN_DIRECTION.md`,
+`design-system/balaqoldau/MASTER.md`, root `PROGRESS.md`.
+
+Stage 7.5 аяқталды. API келісімшарттары мен existing functionality сақталған.
+Stage 7 dev-only dependency risk/production TLS/least-privilege/retention/manual
+accessibility launch gates сақталады; public production readiness жаңадан мәлімделмейді.
+
+## Stage 7.6 — GovTech Design Refinement (2026-11-12)
+
+- Current frontend/README/PROGRESS, UI/UX Pro Max typography/layout/accessibility
+  нұсқаулары және Stage 7.5 screenshot қаралды. GOV.UK search/topic-directory құрылымы
+  зерттелді; eGov public page қайта ашылды, text response шектеулі. Брендинг/layout
+  көшірілмеді. Unslop қолжетімсіз, қолданылды деп мәлімделмейді.
+- Үлкен marketing hero, eyebrow labels, иконка-тақырып санат карточкалары, төмендегі
+  қайталанған steps/CTA панельдері алынды. Home: сол жақта ықшам search + filters,
+  оң жақта semantic ordered үш қадамдық «Қалай жұмыс істейді?»; <=960px бір баған.
+  #how навигациясы guide-қа focus береді, hash/back behavior сақталған.
+- Қолдау бағыттары және API санаттары мәтіндік каталог болды; program results
+  карточкалары шекарамен бөлінген ықшам list rows-қа көшті. Ішкі беттерде heading
+  24–32px, whitespace азайтылды, негізгі panel corners 2px. Contact/details сыртқы
+  nested box азайды; field labels, source/date, error/success және favorite controls сақталды.
+- White/navy/blue сақталып, шағын түпнұсқа SVG оюға ғана muted teal #197d89 accent
+  қосылды. Ою aria-hidden/noninteractive, мемлекеттік рәміз емес. Фото/font/package
+  қосылған жоқ; independence disclaimer әр бетте көрінеді, жалған статистика/бағдарлама жоқ.
+- Home.tsx, SupportFinder.tsx, App.tsx, Contact.tsx, refinements.css, browser suite,
+  frontend README/DESIGN_DIRECTION/MASTER және PROGRESS жаңартылды. Бұрынғы Stage 7.5
+  uncommitted жұмысы сақталды; backend/API/schema/env/dependency файлдары өзгерген жоқ.
+
+### Нақты verification
+
+- Frontend `npm run build` **PASS**, `npm run lint` **PASS**, exit 0.
+- `npm test` **27/27 PASS**, skipped 0, exit 0.
+- Development browser suite **23/23 PASS**, exit 0; соңғы built-dist suite (Vite-сіз)
+  **24/24 PASS**, exit 0. Guide layout тесті implementation алдында 0 vs 3 қадаммен
+  **FAIL** болды, түзетуден кейін өтті. Desktop қатар/mobile төмен орналасуы және
+  #how focus жеке тексерілді. Ешбір бұрынғы regression assertion өшірілмеді.
+- Нақты backend GET smoke, q/region/category/age, pagination/reset, source/date,
+  favorites/back navigation, retry/stale cancellation, contact validation/pending/
+  error/success және DEMO/draft rejection өтті. Contact browser fixtures арқылы,
+  development database-ке хабарлама жазылған жоқ.
+- 10 бет/күй × 320/375/768/1024/1440 = **50** комбинация: overflow/label/heading
+  қатесі 0; **1390 computed text contrast checks**, failure 0. Native Tab/Enter/Escape,
+  skip/route focus, Chrome AX names, form error summary және reduced motion өтті.
+- Алты маршруттың desktop/mobile screenshot-тары визуалды қаралды. Ignored artifacts:
+  `balaqoldau/node_modules/.cache/stage6-portal76-final-*.png`,
+  `stage6-portal76-final.json`, `stage6-accessibility.json`.
+- Соңғы bundle: JS **308.37 kB / gzip 96.34 kB**, CSS **25.71 kB / gzip 6.12 kB**.
+  Built home local unthrottled sample: LCP/FCP **104 ms**, CLS **0**, long tasks **0**;
+  бұл production field CWV емес.
+- `git diff --check` соңғы тексеруде PASS; табылған бір whitespace жолы түзетілді.
+  Branch development және main b84e459c0d808729d606c2dbedfc061bf75aa72e сақталды.
+  Backend/DB өзгерісі, record publication, push/merge/deploy орындалған жоқ.
+
+Stage 7.6 аяқталды. Full WCAG сәйкестігі мәлімделмейді: NVDA/VoiceOver қолмен тексеруі
+және бұрынғы Stage 7 production/security launch gates әлі қажет. Backend tests/audits
+бұл frontend-only кезеңде қайта іске қосылмады; бұрынғы нәтижелер тарихи есепте.
+
+## Қосымша UI/UX — hero, сары акцент, күйлер, footer (2026-11-12)
+
+- Hero-ның екі бағаны сақталды; guide астына шағын original `family-reading.svg`
+  қосылды. Коммерциялық қолдануға рұқсат беретін толық MIT license SVG ішінде;
+  сыртқы stock/photo қолданылмады. Alt, width/height және responsive max-width бар.
+- Негізгі көк сақталып, жалғыз қосымша accent #F4B942 болды. Іздеу CTA-сына navy
+  мәтін/шекара қолданылды; normal/hover text contrast AA unit test өтті.
+- Loading «Деректер жүктелуде…», empty «Қазір бұл санатта бағдарламалар жоқ»,
+  нақты error «Деректерді жүктеу мүмкін болмады. Қайталап көріңіз.» бөлек көрсетіледі.
+  Home error кезінде empty hint шықпайды; retry және status-specific safe detail сақталды.
+- Footer қайталанған description/disclaimer-ден тазартылды; semantic navigation,
+  Байланыс, copyright және дереккөз ескертпесі сақталды. Header independence notice орнында.
+- Өзгерістер: Home.tsx, RequestState.tsx, App.tsx, refinements.css, жаңа SVG,
+  tests/accessibility.test.mjs, tests/browser-integration.mjs, MASTER.md, PROGRESS.md.
+- Build **PASS**, lint **PASS**, unit tests **28/28 PASS**, built browser **24/24 PASS**,
+  exit 0. Алдымен empty-copy regression test FAIL болды, іске асырудан кейін өтті.
+  50 page/width layout/contrast checks, keyboard, navigation, filters, favorites және
+  contact suite өтті; 12 screenshot review-де computed contrast failure 0.
+- Backend/API/DB/dependencies өзгерген жоқ; branch development, push/deploy жоқ.
+
+## Stage 8.1 — Database Readiness & Fail-Closed Reliability (2026-11-12)
+
+### Іске асыру
+
+- README/PROGRESS, backend config/server/pool/tests, TDD және security нұсқаулары оқылды.
+  Өзгерістер тек backend reliability және құжаттарға қатысты; frontend-тің бұрынғы
+  uncommitted жұмысы сақталды. Ешқандай package орнатылған жоқ.
+- `GET /api/health` бұрынғы 200 `{status:"ok"}` liveness күйінде қалды, SQL орындамайды.
+  Жаңа `GET /api/ready`: 200 `{status:"ready"}` немесе 503 generic NOT_READY JSON.
+  Қате query → 400, HEAD қолдау, CORS/Helmet/no-store/rate limiting сақталған.
+- Readiness pool checkout + public view probe үшін **2000ms жалпы deadline** қолданады.
+  `SELECT id FROM balaqoldau.published_programs LIMIT 0` connection/view/SELECT рұқсатын
+  тексереді, дерек қайтармайды. Бос каталог дайын болып саналады. Timeout-та client
+  destroy, кеш checkout discard; concurrent probes бір pending жұмысты бөліседі.
+- Production DATABASE_URL және HTTPS CORS origins міндетті; DB parser verify-full
+  талабын сақтайды. Алғашқы probe өтпесе порт ашылмайды, pool жабылып exit 1 болады.
+  Development/test health-only режимі сақталды. Connection string, DB error, stack және
+  pgpass мазмұны клиентке/журналға берілмейді.
+- Startup/shutdown тесттелетін lifecycle.ts модуліне бөлінді. SIGTERM/SIGINT кезінде
+  ready false, HTTP drain, pool.end; repeated shutdown idempotent. 10s deadline асса
+  remaining HTTP connections жабылып, entry point generic хабармен exit 1 жасайды.
+- Readiness жүріп жатқанда shutdown басталса, probe аяқталған соң да күй қайта
+  тексеріледі. Бұл race тестте алдымен 200 vs 503 FAIL болып, кейін түзетілді.
+- Қалыпты public API requests readiness query орындамайды. Pool/schema/migration,
+  production рөлдері мен credentials өзгертілмеді; жаңа SQL migration жоқ.
+
+### Нақты тексерулер
+
+- Backend `npm run build` және `npm test`: **PASS**, **94/94**, skipped 0, exit 0.
+  Available/missing/unavailable DB, pool checkout/query timeout, late-client cleanup,
+  recovery, production missing/invalid config/TLS/http-origin, safe errors, health
+  independence, SIGTERM/SIGINT, in-flight HTTP drain, idempotency және shutdown deadline
+  қамтылды. Startup signal tests Windows-та process.emit арқылы handler-ді тексереді.
+- Алғашқы жаңа tests implementation жоқта FAIL болды. Strict TS resolver assignment
+  диагностикасы түзетілді; lint suppression/any/new dependency енгізілген жоқ.
+- Password file бар екені contents оқылмай тексерілді. Read-only identity:
+  **balaqoldau_dev / postgres**, **balaqoldau_test / postgres**. Auth сәтті болды;
+  elevated privilege сұрауы не credential өзгерту қажет болмады.
+- `npm run test:db`: build **PASS**, **14/14 PASS**, skipped 0, exit 0. Нақты test DB
+  readiness 200, ended pool 503, unreachable local PostgreSQL connection 503 тексерілді.
+  PostgreSQL service тоқтатылған жоқ. Existing integration fixtures rollback болды;
+  test DB-нің жеті application кестесінде соңғы read-only count **0**.
+- Frontend `npm test`: **28/28 PASS**, exit 0; frontend source бұл кезеңде өзгермеді.
+  Frontend build/browser және dependency audits қайта іске қосылған жоқ.
+- Test output-та pgpass қолдауы pg 9-да алынатыны туралы бұрынғы deprecation warning
+  сақталған; жасырылмады. Пароль/connection string шығарылған жоқ.
+- Git diff whitespace check PASS; branch development, main
+  b84e459c0d808729d606c2dbedfc061bf75aa72e сақталды. balaqoldau_db/unrelated DB-ге
+  қосылу/өзгерту, drop/reset/destructive migration, push/merge/deploy болмады.
+
+### Файлдар және қалған талаптар
+
+Backend src/app.ts, config/env.ts, server.ts; жаңа src/lifecycle.ts,
+src/db/readiness.ts, src/routes/ready.ts; tests/app/config/startup.test.mjs;
+жаңа tests/readiness.test.mjs, tests/lifecycle.test.mjs,
+tests/integration/readiness.test.mjs; backend README және env examples;
+root README/PROGRESS; docs/DEPLOYMENT.md, docs/SECURITY.md.
+
+Stage 8.1 аяқталды. Readiness — point-in-time public-view тексеруі, барлық taxonomy/
+contact write grants не backup күйінің толық кепілдігі емес. Production TLS cert/CA,
+least-privilege runtime login (local postgres суперпайдаланушысы емес), нақты ingress,
+hosting OS signal delivery және restore drill staging-де бөлек орындалуы тиіс.
+Бұл review рөлдерді/grants/credentials өзгертпеді. Production-ready деп мәлімделмейді;
+Stage 8.2 автоматты басталған жоқ.
+
+## Stage 8.2 — Contact Privacy & Retention (2026-11-12)
+
+### Іске асыру және қауіпсіздік
+
+- Contact schema/API/repository, pool, privacy құжаттары және tests қаралды; TDD және
+  Security нұсқаулары қолданылды. POST/form/schema және Stage 8.1 өзгертілмеді.
+- Жаңа retention/config.ts, cleanup.ts, cli.ts және `npm run contact:cleanup` script.
+  Міндетті explicit `--dry-run` не `--execute`; басқа/қосарланған flag rejected.
+- Default 30 күн, allowed 30–365; batch default 100, allowed 1–1000, бір invocation
+  тек бір batch орындайды. Unsafe config DB қосылымына дейін rejected.
+- Dedicated RETENTION_DATABASE_URL қажет, DATABASE_URL fallback жоқ. URL path,
+  RETENTION_EXPECTED_DATABASE және нақты current_database() сәйкес болуы тиіс;
+  balaqoldau_db және system DB тыйым салынған. Password/PII console-ға шықпайды.
+- Cutoff PostgreSQL transaction уақытынан days × 24 сағатпен UTC-де есептеледі;
+  микросекунд precision сақталады. `created_at < cutoff`: дәл 30 күндік boundary сақталады.
+- Dry-run SELECT count және bounded wouldDelete береді, DELETE орындамайды;
+  CLI қосымша READ ONLY transaction қолданады. Execute parameterized CTE DELETE,
+  stable oldest-first LIMIT, transaction/advisory lock және actual rowCount cap қолданады.
+  Қателерде rollback; overlapping job қауіпсіз тоқтайды. Logs: mode/config/counts қана.
+- docs/CONTACT_RETENTION.md: operator identity/permission review, manual early deletion
+  (UUID bound parameter, бір record), scheduling/failure/retry/backlog және backup/restore
+  рәсімі. Retention role grants тек құжатталды; рөл/credential өзгертілмеді.
+- Contact form notice қарап тексерілді: ол нақты жиналатын fields пен sensitive-data
+  warning береді, automatic deletion туралы мәлімдемейді; frontend өзгерту қажет болмады.
+  Public launch алдында толық privacy notice/нақты deletion channel бекітілуі тиіс.
+- External scheduler/service қосылған жоқ; автоматты жою operational деп мәлімделмейді.
+
+### Нақты verification
+
+- Жаңа unit tests implementation жоқта FAIL болды. Backend `npm run build` **PASS**,
+  `npm test` **102/102 PASS**, skipped 0, exit 0. Mode/config/target validation,
+  dry-run SQL/parameter binding, identity mismatch, busy lock және unavailable DB failure
+  тесттері бар; бұрынғы contact API және Stage 8.1 tests өтті.
+- `npm run test:db`: build **PASS**, **20/20 PASS**, skipped 0, exit 0. Жаңа tests:
+  newer/older, exact boundary және ±1 microsecond, configurable 35-day period,
+  dry-run no-deletion, oldest-first/batch=1, repeated execution → 0 және CLI dry-run.
+- Нақты DELETE SQL тек balaqoldau_test ішіндегі synthetic fixtures transaction-ында
+  орындалды және **ROLLBACK** болды. Existing test contact dataset бос болмаса test
+  тоқтайды. CLI --execute dev/production-да іске қосылған жоқ; шынайы хабарламалар жойылмады.
+- Соңғы read-only тексеру: balaqoldau_test.contact_messages **0**. Pgpass contents
+  оқылмады/шығарылмады; pg 9 deprecation warning бұрынғыдай бар, жасырылмады.
+- Schema/migrations/dependencies/lockfile/public API/frontend өзгермеді. Package.json
+  өзгерісі script қосу ғана. Git diff whitespace check PASS; main және development
+  branch сақталды, push/merge/deploy жоқ. balaqoldau_db/unrelated DB қолданылған жоқ.
+
+### Файлдар және операциялық талаптар
+
+Жаңа backend/src/retention/{config,cleanup,cli}.ts,
+backend/tests/retention.test.mjs, backend/tests/integration/retention.test.mjs,
+docs/CONTACT_RETENTION.md; backend/package.json, env examples/README,
+docs/SECURITY.md, docs/DEPLOYMENT.md және PROGRESS.md жаңартылды.
+
+Stage 8.2 код/тест/құжат көлемінде аяқталды. Бөлек least-privilege retention login,
+production TLS, privacy owner, нақты өтініш арнасы, scheduling/monitoring/backlog capacity,
+backup expiry және restore erasure рәсімі әлі оператор тарапынан бекітілуі керек.
+Restricted role тесті рөл өзгертуге рұқсатсыз орындалмады. Күнделікті manual cleanup
+не approved schedule іске қосылмайынша automatic 30-day deletion туралы уәде берілмейді.
+Public production-ready деп мәлімделмейді; Stage 8.3 басталған жоқ.
+
+## Stage 8.3 — CI/CD & Release Security (2026-11-12)
+
+### Орындалды
+
+- `.github/workflows/ci.yml`: pull request/development/main push checks, Ubuntu/Node 24,
+  read-only token, SHA-pinned checkout/setup-node, credentials persistence жоқ, 20-minute
+  timeout және concurrency cancellation. Production secrets/deploy/privileged PR trigger жоқ.
+- Frontend/backend build, lint, TypeScript, unit tests; PostgreSQL 18.6 service ішіндегі
+  isolated `balaqoldau_test`, екі migration run, integration suite. CI тек жаңа ephemeral DB
+  қолданады, DEMO seed/real contact cleanup іске қосылмайды.
+- `scripts/{release-policy,check-release,audit-dependencies}.mjs`: Git inventory және нақты
+  production dist secret/env/credential checks; migration baseline checksum/order/deletion
+  checks; full/prod audit. Production high/critical немесе audit unavailable болса FAIL.
+- `release-assets.json` және Vite build: public directory толық көшірілмейді, тек reviewed
+  license/hash бекіткен logo және MIT family-reading SVG шығарылады. Лицензиясы белгісіз
+  family.jpg және қажетсіз public files production build-ке кірмейді; source жойылған жоқ.
+- Backend lint frontend-тегі existing ESLint арқылы қосылды. Ол анықтаған үш control-regex
+  ескертуі same-behavior character validation-ға ауыстырылды; барлық C0/DEL және allowed
+  message tab/newline boundary regression тесті қосылды. ESLint rules өшірілген жоқ.
+- README, DEPLOYMENT және жаңа RELEASE_CHECKLIST: staging TLS, least privilege roles,
+  backups/isolated restore drill, monitoring, retention schedule, manual review және rollback.
+
+### Нақты жергілікті тексерулер
+
+- Frontend lint, typecheck, build **PASS**; tests **28/28 PASS**, skipped 0.
+- Backend lint, typecheck, build **PASS**; tests **103/103 PASS**, skipped 0.
+- PostgreSQL integration **20/20 PASS**, тек balaqoldau_test; temporary fixtures ROLLBACK.
+- Built-dist Chrome browser **24/24 PASS**: real GET-only dev API smoke, synthetic UI
+  fixtures, responsive/focus/navigation/contrast/form/error tests. CI browser run қосылмаған.
+- Release policy tests **6/6 PASS**, source scan trusted HEAD migration baseline-мен PASS;
+  production artifact scan және private build canary build/scan PASS. Root .gitignore .env,
+  node_modules және dist-ті ignore ететіні тексерілді. Lockfiles өзгермеді.
+- Audit: backend full/prod **0**; frontend full **10 moderate**, high/critical **0**;
+  frontend production **0**. Existing minimatch dev-tool chain тәуекелі қалды, packages
+  орнатылған/жаңартылған жоқ. Алғашқы audit network failure fail-closed болды; registry
+  access-пен қайталау exit 0. Full findings audit exit code 1 counts арқылы өңделеді.
+- Алғашқы PowerShell npm.ps1 execution-policy қатесі npm.cmd арқылы шешілді, system policy
+  өзгермеді. Алғашқы sandbox Chrome connection closed; isolated browser қайта іске қосылып
+  24/24 өтті. pgpass support deprecation warning бар (болашақ pg 9 migration талабы).
+- git diff whitespace check PASS (Windows LF/CRLF warnings ғана); development/main hash
+  сақталды. Existing unrelated changes сақталды. balaqoldau_db қолданылған жоқ;
+  real messages cleanup, roles/credentials changes, install/push/merge/deploy болған жоқ.
+
+### Файлдар және қалған міндеттер
+
+Жаңа: .github/workflows/ci.yml, scripts/release-policy.mjs, scripts/check-release.mjs,
+scripts/audit-dependencies.mjs, scripts/release-policy.test.mjs, release-assets.json,
+balaqoldau/eslint.backend.config.js, docs/RELEASE_CHECKLIST.md.
+Өзгерген: frontend/backend package.json scripts, backend/src/api/schemas.ts,
+backend/tests/api.test.mjs, balaqoldau/vite.config.ts, balaqoldau/tsconfig.node.json,
+README.md, docs/DEPLOYMENT.md, PROGRESS.md.
+
+Stage 8.3 repository implementation және жергілікті verification аяқталды. GitHub Actions
+әлі іске қосылған жоқ (push жасалмады); Linux/Node 24 clean install/service workflow
+нақты GitHub run-да тексерілуі тиіс. Branch protection/required check/reviewer және secret
+scanning оператор арқылы орнатылады. Pattern/DDL/license checks manual review-ды алмастырмайды.
+Staging HTTPS/DB TLS/restricted roles, backup restore, monitoring, retention scheduling және
+assistive-technology manual testing әлі operational gates. Public production-ready деп
+мәлімделмейді; Stage 8.4 басталған жоқ.
+
+## Stage 8.4 — Asset Licensing & Security Cleanup (2026-11-12)
+
+### Өзгерістер
+
+- Frontend public/src assets, CSS/font imports, inline SVG және installed Lucide license
+  тексерілді. Белсенді екі artwork: project-owned logo және embedded full MIT notice бар
+  family-reading.svg. Font files/web-font downloads жоқ, Segoe UI/Arial/system fallback.
+- Unused әрі лицензия дәлелі жоқ family.jpg және hero.png алынды. Қолданылмайтын starter
+  vite.svg/react.svg/favicon.svg/icons.svg те алынды; олардың құқықтары ойдан белгіленбеді.
+- Import/reference тексеруінен кейін HeroFamilyPhoto.tsx/.css, ProductPreview.tsx/.css,
+  FamilyAtlas.tsx, Illustration.tsx, useScrollReveal.ts және импортталмайтын App.css алынды.
+  DEMO data module legacy tests қолданатындықтан сақталды. Active routes/UI өзгертілмеді.
+- Public THIRD_PARTY_NOTICES.txt installed lucide-react/LICENSE-тен сөзбе-сөз көшірілді:
+  ISC және inherited icon MIT copyright/permission notices. Manifest-ке exact SHA-256
+  қосылды, Vite notices-ті production dist-ке шығарады. CREDITS inventory жаңартылды.
+- approvedAssets енді public және src ішіндегі manifest-тен тыс image/font/media assets-ті
+  source guard/build кезінде қабылдамайды. Unknown public JPG, source WOFF2, unknown license,
+  changed bytes және escaped path regression checks бар. Source guard Git-те әлі tracked,
+  бірақ working tree-де жойылған файлдарды дұрыс өңдейді; secrets тексерісі сақталды.
+- Frontend email regex authoritative backend Zod policy-мен сәйкестендірілді. Backend schema,
+  API contract, valid plus/apostrophe/case behavior және contact submit trimming өзгермеді.
+  Cross-layer test malformed local/domain, whitespace және 254/255 length boundary қамтиды.
+
+### Тексерулер
+
+- Email parity және unreviewed-asset regression алдымен FAIL, түзетуден кейін PASS.
+- Frontend build/lint/typecheck PASS; tests **29/29 PASS**, skipped 0.
+- Backend build/lint/typecheck PASS; tests **104/104 PASS**, skipped 0.
+- Release policy **6/6 PASS**; source scan trusted HEAD baseline-мен және actual production
+  artifact scan PASS. Tracked real .env/credentials/build artifacts анықталған жоқ;
+  тек env examples tracked, real env/node_modules/dist Git арқылы ignored.
+- Built-dist Chrome **24/24 PASS**, responsive/focus/navigation/contrast/contact және API
+  scenarios. Dev backend-ке тек GET сұраулары жетті, POST browser fixtures ішінде өңделді.
+- Audit: backend full/prod **0**; frontend prod **0**, full **10 moderate** (dev toolchain),
+  high/critical **0**. Dependencies/lockfiles орнатылған не өзгертілген жоқ.
+- Бірінші frontend lint unnecessary regex escapes тапты; redundant escapes алынып,
+  lint қайта PASS болды, ережелер өшірілген жоқ. git diff --check PASS (LF/CRLF warnings).
+- DB integration tests бұл кезеңде орындалмады: user constraint бойынша ешбір database-ке
+  жазба/fixture енгізілген жоқ. Migration/seed/retention commands іске қосылмады.
+
+### Файлдар және аяқталу мәртебесі
+
+Өзгерген: balaqoldau/src/api/contact.ts, frontend/backend tests/api.test.mjs,
+scripts/release-policy.mjs, scripts/check-release.mjs, scripts/release-policy.test.mjs,
+release-assets.json, balaqoldau/public/images/CREDITS.md, balaqoldau/README.md,
+docs/RELEASE_CHECKLIST.md, docs/DEPLOYMENT.md, PROGRESS.md.
+Жаңа: balaqoldau/public/THIRD_PARTY_NOTICES.txt. Алынған 6 assets және 8 legacy UI/style
+файлы жоғарыда тізілген. Қалған бұрынғы uncommitted өзгерістер сақталды.
+
+Stage 8.4 implementation/local verification аяқталды. Stage 8.1–8.4 repository жұмыстары
+аяқталды, бірақ Stage 8 public release operational gates жабылған жоқ: нақты GitHub CI run,
+branch protection, manual ownership/license review, staging TLS/restricted roles,
+backup restore, monitoring/retention scheduling және assistive-technology checks қажет.
+Pattern/hash scan заңды құқықты немесе барлық secret форматтарын дәлелдемейді.
+Frontend dev-only 10 moderate және болашақ pgpass/pg 9 transition тәуекелдері сақталады.
+Main hash/development branch сақталды; DB/credentials/infrastructure өзгермеді;
+push/merge/deploy жоқ. Stage 9 басталған жоқ. Production-ready деп мәлімделмейді.

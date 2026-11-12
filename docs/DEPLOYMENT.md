@@ -114,7 +114,9 @@ INSERT/RETURNING тексеріңіз; contact сынағын **BEGIN → INSERT
    Stage 7 схема өзгертпейді, кері migration қажет емес. Down migration/reset/drop
    орындамаңыз. Болашақ incompatible schema болса traffic тоқтату/forward fix немесе
    approved restore жоспары қажет; backup restore қолданыстағы базаға overwrite жасамайды.
-5. Health 200 тек liveness. Readiness үшін runtime connection-мен view SELECT және
+5. Health 200 тек liveness. Stage 8.1: `GET /api/ready` 200 тек connection/view probe
+   сәтті болса, DB failure/2s timeout/drain кезінде 503. Production startup probe өтпей
+   HTTP порт ашылмайды. Толық құқықтар үшін runtime connection-мен view SELECT және
    `/api/programs`, `/api/categories`, `/api/regions` сұрауларын тексеріңіз; қате болса
    трафикті жібермеңіз. Жария non-DEMO дерек жоқ болса бос нәтиже — дұрыс жауап.
 
@@ -146,10 +148,16 @@ aggregate uptime/5xx/429/latency бақылауын және жауапты ке
 - Staging-де шынайы runtime credentials және end-to-end contact POST/retention drill;
   public endpoint-терде draft/verified/DEMO жоқтығын қайта тексеру.
 - [Retention](SECURITY.md) owner-ы, public privacy notice және deletion request арнасы;
-  job әлі жазылмағандықтан күнделікті manual purge міндетін бекіту, backup restore drill.
-- Фотоның пайдалану/адамдардың бейнесіне құқықтарын растау:
-  [CREDITS](../balaqoldau/public/images/CREDITS.md) лицензияны әлі көрсетпейді.
+  [Stage 8.2 cleanup command](CONTACT_RETENTION.md) дайын, бірақ scheduling қосылмаған:
+  күнделікті approved manual cleanup міндетін бекіту, backup restore drill.
+- Stage 8.3: production public assets тек `release-assets.json` allowlist/hash арқылы
+  жиналады. Stage 8.4: лицензиясы белгісіз `family.jpg` және қолданылмайтын starter assets
+  source-тен жойылды. Lucide ISC/MIT notices build-ке кіреді; жаңа asset құқықтарын reviewer растайды.
 - NVDA/VoiceOver қолмен тексеру; production mobile performance/slow network сынағы.
   Custom automated contrast/keyboard тексеруі толық WCAG сәйкестігін білдірмейді.
 - Dev-only minimatch тәуекелін қабылдау немесе upstream safe fix шыққанда жаңарту;
   тәуелсіз code/security review. Осы gates өтпей public production-ready деп саналмайды.
+
+Stage 8.3: [CI және release checklist](RELEASE_CHECKLIST.md). Workflow deploy жасамайды;
+TLS/roles/backup/monitoring/retention schedule нақты ортада оператор арқылы тексеріледі.
+GitHub branch protection автоматты орнатылмайды.
