@@ -1,10 +1,75 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { forbiddenPath, textFindings, checkMigrations, approvedAssets, sha256 } from './release-policy.mjs';
+import { forbiddenPath, textFindings, checkMigrations, approvedAssets, sha256, safePolicyError } from './release-policy.mjs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { auditDecision } from './audit-dependencies.mjs';
+
+test('approved text assets use LF bytes and explicit LF checkout attributes', () => {
+  const root = new URL('../', import.meta.url);
+  for (const asset of JSON.parse(readFileSync(new URL('release-assets.json', root), 'utf8'))) {
+    const bytes = readFileSync(new URL(asset.source, root));
+    assert.equal(bytes.includes(Buffer.from('\r\n')), false, `Noncanonical asset: ${asset.source}`);
+    assert.equal(sha256(bytes), asset.sha256, `Asset hash mismatch: ${asset.source}`);
+    const attributes = execFileSync('git', ['check-attr', 'eol', '--', asset.source], { cwd: root, encoding: 'utf8' });
+    assert.equal(attributes.trim(), `${asset.source}: eol: lf`);
+  }
+});
+
+test('policy diagnostics explain known failures and redact external error contents', () => {
+  assert.equal(safePolicyError(new Error('Existing migration changed or removed')), 'Existing migration changed or removed');
+  assert.match(safePolicyError(new Error('Asset policy hash mismatch: images/test.svg')), /hash mismatch: images\/test.svg/);
+  const secret = ['sensitive', 'payload'].join('-');
+  assert.equal(safePolicyError(new SyntaxError(secret)), 'Invalid JSON (contents redacted)');
+  assert.equal(safePolicyError(Object.assign(new Error(secret), { code: 'ENOENT' })), 'Required file or directory missing (ENOENT)');
+  assert.equal(safePolicyError(new Error(secret)), 'Unexpected failure (details redacted)');
+});
+
+test('CLI baseline failures are actionable, fail closed and never echo supplied input or Git stderr', () => {
+  for (const baseline of ['private-invalid-input', 'f'.repeat(40)]) {
+    const result = spawnSync(process.execPath, ['scripts/check-release.mjs', '--source'], {
+      cwd: new URL('../', import.meta.url), encoding: 'utf8', timeout: 10000,
+      env: { ...process.env, MIGRATION_BASE: baseline },
+    });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /\[migration baseline\]: (Invalid migration baseline|Migration base commit unavailable \(fetch required history\))/);
+    assert.equal(result.stderr.includes(baseline), false);
+    assert.equal(result.stderr.includes('fatal:'), false);
+    assert.equal(result.stderr.includes(' at '), false);
+  }
+});
+
+test('CLI identifies asset hash failures and redacts malformed JSON contents', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'balaqoldau-policy-cli-'));
+  try {
+    mkdirSync(path.join(root, 'scripts'));
+    mkdirSync(path.join(root, 'balaqoldau/public'), { recursive: true });
+    for (const name of ['check-release.mjs', 'release-policy.mjs']) {
+      writeFileSync(path.join(root, 'scripts', name), readFileSync(new URL(name, import.meta.url)));
+    }
+    writeFileSync(path.join(root, 'balaqoldau/public/test.svg'), '<svg/>');
+    const manifest = path.join(root, 'release-assets.json');
+    writeFileSync(manifest, JSON.stringify([{ source: 'balaqoldau/public/test.svg', output: 'test.svg', license: 'MIT', sha256: '0'.repeat(64) }]));
+    const run = () => spawnSync(process.execPath, ['scripts/check-release.mjs', '--source'], { cwd: root, encoding: 'utf8', timeout: 10000 });
+    const mismatch = run();
+    assert.equal(mismatch.status, 1);
+    assert.match(mismatch.stderr, /\[asset policy\]: Asset policy hash mismatch: test.svg/);
+    const secret = 'synthetic-sensitive-json-value';
+    writeFileSync(manifest, '{"token":"' + secret + '"');
+    const malformed = run();
+    assert.equal(malformed.status, 1);
+    assert.match(malformed.stderr, /\[asset policy\]: Invalid JSON \(contents redacted\)/);
+    assert.equal(malformed.stderr.includes(secret), false);
+    assert.equal(malformed.stderr.includes(root), false);
+  } finally {
+    assert.equal(path.dirname(path.resolve(root)), path.resolve(tmpdir()));
+    assert.equal(path.basename(root).startsWith('balaqoldau-policy-cli-'), true);
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test('real environment/credential files are blocked, examples are source-only', () => {
   for (const file of ['.env', 'backend/.env.local', 'a/pgpass.conf', 'a/private.key', 'a/backup.dump', 'backend/dist/server.js', 'coverage/report.html']) assert.equal(forbiddenPath(file), true);

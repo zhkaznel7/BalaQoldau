@@ -1,0 +1,4 @@
+# Approved text assets must have identical bytes on Windows and Linux.
+/balaqoldau/public/balaqoldau.svg text eol=lf
+/balaqoldau/public/images/family-reading.svg text eol=lf
+/balaqoldau/public/THIRD_PARTY_NOTICES.txt text eol=lf

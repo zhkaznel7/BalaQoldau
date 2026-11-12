@@ -742,3 +742,20 @@ Pattern/hash scan заңды құқықты немесе барлық secret ф�
 Frontend dev-only 10 moderate және болашақ pgpass/pg 9 transition тәуекелдері сақталады.
 Main hash/development branch сақталды; DB/credentials/infrastructure өзгермеді;
 push/merge/deploy жоқ. Stage 9 басталған жоқ. Production-ready деп мәлімделмейді.
+
+## Stage 8 CI source-policy failure — түзету
+
+- Root cause жергілікті working bytes пен Git blob арқылы дәлелденді: balaqoldau.svg
+  Windows-та CRLF (manifest 66ac5741…), ал Git blob/Ubuntu checkout LF (31e383b8…).
+  MIGRATION_BASE емес, asset exact-byte hash mismatch generic catch артында жасырылған.
+- .gitattributes үш approved text asset үшін LF бекітеді; logo working copy LF және manifest
+  Git LF bytes hash-ына сәйкестендірілді. Hash/license/migration checks әлсіреген жоқ.
+- check-release phase және allowlisted safe reason шығарады. Malformed JSON contents,
+  arbitrary error messages, Git stderr және stack traces шығарылмайды. Missing baseline
+  commit бөлек actionable error береді; valid full SHA үшін Git commit existence тексеріледі.
+- Release-security 10/10 PASS: LF attributes/hash, safe diagnostics, CLI invalid/missing
+  baseline, hash mismatch және malformed JSON redaction regression tests. Frontend build
+  (TypeScript қоса), lint, tests 29/29 PASS; actual artifact/source checks full HEAD SHA-мен
+  PASS. git diff --check PASS. Backend/DB өзгермегендіктен олардың тесттері қайталанбады.
+- Commit/push/main өзгерісі жоқ. Нақты GitHub Actions қайта іске қосылған жоқ; патч
+  жарияланғаннан кейін CI нәтижесі тексерілуі керек.

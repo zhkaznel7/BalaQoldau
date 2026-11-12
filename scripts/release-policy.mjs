@@ -3,6 +3,21 @@ import { readFileSync, realpathSync, readdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
 
 export const sha256 = value => createHash('sha256').update(value).digest('hex');
+// Only messages authored by this checker are public; never echo JSON, Git stderr or OS paths.
+export function safePolicyError(error) {
+  const known = new Set(['Empty asset policy', 'Asset symlink is not allowed', 'Unreviewed frontend asset',
+    'Invalid asset policy', 'Asset escaped public root', 'Invalid migration inventory',
+    'Destructive migration requires separate review', 'No migrations', 'Existing migration changed or removed',
+    'New migrations must follow previous versions', 'Invalid migration baseline', 'Git command failed',
+    'Migration base commit unavailable (fetch required history)',
+    'Choose --source or --artifacts', 'Missing or changed approved asset', 'Missing build outputs']);
+  if (known.has(error?.message)) return error.message;
+  if (/^Asset policy hash mismatch: [a-zA-Z0-9/_-]+\.(?:svg|txt)$/.test(error?.message ?? '')) return error.message;
+  if (error instanceof SyntaxError) return 'Invalid JSON (contents redacted)';
+  if (error?.code === 'ENOENT') return 'Required file or directory missing (ENOENT)';
+  if (['EACCES', 'EPERM'].includes(error?.code)) return 'File access denied';
+  return 'Unexpected failure (details redacted)';
+}
 export function forbiddenPath(file, artifact = false) {
   return file.split(/[\\/]/).some(part => {
     if (!artifact && ['.env.example', '.env.production.example'].includes(part)) return false;

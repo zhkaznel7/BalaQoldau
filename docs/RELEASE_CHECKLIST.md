@@ -49,6 +49,12 @@ Source guard `MIGRATION_BASE` trusted full commit SHA берілсе migration c
 тексереді; онсыз тек current inventory. CI baseline-ды GitHub event-тен алады, initial
 zero-SHA push бос baseline. Missing Git object/policy/build output тексеруді тоқтатады.
 
+Approved text assets `.gitattributes` арқылы LF checkout қолданады. Manifest SHA-256
+нақты LF bytes бойынша есептеледі; hash кезінде line endings үнсіз нормаланбайды.
+Windows-та asset жаңартқанда line ending пен manifest hash-ын бірге тексеріңіз.
+Policy error `[phase]: reason` береді; JSON contents, Git stderr және stack traces
+шығарылмайды. Missing baseline болса required history-ді fetch етіңіз, check-ті айналып өтпеңіз.
+
 ## Міндетті release checklist
 
 - [ ] GitHub-та `CI / quality` required check, branch protection, maintainer approval және

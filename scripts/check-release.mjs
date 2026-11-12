@@ -2,12 +2,17 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync, lstatSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { approvedAssets, forbiddenPath, textFindings, checkMigrations, sha256 } from './release-policy.mjs';
+import { approvedAssets, forbiddenPath, textFindings, checkMigrations, sha256, safePolicyError } from './release-policy.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const git = args => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 });
+const git = args => {
+  try {
+    return execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
+  } catch { throw new Error('Git command failed'); }
+};
 const mode = process.argv[2];
 const failures = [];
+let phase = 'arguments';
 function inspect(file, artifact = false) {
   if (forbiddenPath(file, artifact)) { failures.push(`${file}: forbidden path`); return; }
   const target = path.join(root, file);
@@ -25,21 +30,29 @@ function walk(dir) {
 }
 try {
   if (!['--source', '--artifacts'].includes(mode) || process.argv.length !== 3) throw new Error('Choose --source or --artifacts');
+  phase = 'asset policy';
   const assets = approvedAssets(root);
   if (mode === '--source') {
+    phase = 'source inventory';
     const files = new Set(git(['ls-files', '-z', '--cached', '--others', '--exclude-standard']).split('\0').filter(Boolean));
     for (const file of git(['ls-files', '-z', '--deleted']).split('\0').filter(Boolean)) files.delete(file);
     for (const file of files) inspect(file);
+    phase = 'migration inventory';
     const current = new Map(readdirSync(path.join(root, 'backend/migrations')).map(name => [name, readFileSync(path.join(root, 'backend/migrations', name))]));
     const previous = new Map();
     const base = process.env.MIGRATION_BASE;
+    phase = 'migration baseline';
     if (base && !/^0{40}$/.test(base)) {
       if (!/^[a-f0-9]{40}$/.test(base)) throw new Error('Invalid migration baseline');
+      try { git(['cat-file', '-e', `${base}^{commit}`]); }
+      catch { throw new Error('Migration base commit unavailable (fetch required history)'); }
       for (const file of git(['ls-tree', '-r', '--name-only', base, '--', 'backend/migrations']).trim().split('\n').filter(Boolean)) previous.set(path.basename(file), git(['show', `${base}:${file}`]));
     }
+    phase = 'migration policy';
     checkMigrations(previous, current);
     console.log(`Source/asset/migration policy: ${files.size} files checked; baseline ${base ? 'provided' : 'not provided (inventory only)'}`);
   } else {
+    phase = 'production artifacts';
     for (const asset of assets) {
       if (sha256(readFileSync(path.join(root, 'balaqoldau/dist', asset.output))) !== asset.sha256) throw new Error('Missing or changed approved asset');
     }
@@ -59,9 +72,13 @@ try {
     }
     console.log('Production artifact policy checked');
   }
-  if (failures.length) throw new Error(failures.join('\n'));
+  if (failures.length) {
+    console.error(failures.join('\n'));
+    process.exitCode = 1;
+  }
 } catch (error) {
   // Findings contain paths/reason categories, never matching secret values.
-  console.error(failures.length ? failures.join('\n') : 'Release policy check failed: check asset policy, migrations and baseline');
+  console.error(`Release policy check failed [${phase}]: ${safePolicyError(error)}`);
+  if (failures.length) console.error(failures.join('\n'));
   process.exitCode = 1;
 }
