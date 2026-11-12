@@ -18,6 +18,12 @@ Production secrets, deploy job және `pull_request_target` жоқ.
   fixtures transaction ішінде ROLLBACK жасайды.
 - Екі жобаның full/production audits. Production high/critical немесе registry/JSON error
   болса CI FAIL. Dev findings есепте көрсетіледі.
+  Cold-cache advisory/metadata lookup үшін әр npm audit process шегі 90s, fetch timeout
+  30s, npm network retry 1 (1–2s backoff). Process timeout/transient registry error болса
+  толық command тек бір рет қайталанады. Толық жарамды report алынбаса FAIL; malformed
+  report/auth/lockfile errors немесе vulnerabilities retry арқылы айналып өтілмейді.
+  Diagnostics project/scope және safe reason code көрсетеді; raw registry output,
+  stderr/config/credentials логқа шықпайды. Ең ұзақ төрт audit scope жалпы ~12 минут.
 - Нақты dist: env/keys/token/credential және private build canary scan. Frontend тек
   JS/CSS/HTML және `release-assets.json` бекіткен SVG файлдарын қабылдайды.
 
@@ -30,7 +36,7 @@ Workflow GitHub-та әлі орындалмады. Бірінші Actions run �
 Dependencies алдын ала екі жобада орнатылған болуы керек. Windows-та `npm.cmd` қолданыңыз.
 
 ```sh
-node --test scripts/release-policy.test.mjs
+node --test scripts/*.test.mjs
 node scripts/check-release.mjs --source
 npm run lint --prefix balaqoldau
 npm run typecheck --prefix balaqoldau

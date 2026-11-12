@@ -759,3 +759,31 @@ push/merge/deploy жоқ. Stage 9 басталған жоқ. Production-ready д
   PASS. git diff --check PASS. Backend/DB өзгермегендіктен олардың тесттері қайталанбады.
 - Commit/push/main өзгерісі жоқ. Нақты GitHub Actions қайта іске қосылған жоқ; патч
   жарияланғаннан кейін CI нәтижесі тексерілуі керек.
+
+## Stage 8 CI dependency-audit timeout — түзету
+
+- scripts/audit-dependencies.mjs, workflow, npm registry configuration және екі lockfile
+  тексерілді: lockfileVersion 3, backend 100/frontend 224 package entries; resolved hosts
+  тек registry.npmjs.org. Project/root .npmrc жоқ, registry URL credentials жоқ.
+- Ескі CI flags cold isolated npm cache-пен дәл қайталанды: frontend process **25 011ms**
+  кейін ETIMEDOUT/SIGTERM, status null, stdout 0 bytes. Generic catch process timeout-ты
+  жасырып тұрған. Warm-cache full audit exit 1 толық 10 moderate report-пен қалыпты өтті;
+  vulnerability exit code мен infrastructure error бір жағдай емес.
+- Process deadline 90s; fetch timeout 30s, npm network retry 1, 1–2s backoff. Timeout/explicit
+  transient registry errors үшін толық command қосымша бір рет қана қайталанады. Auth,
+  missing lockfile, malformed JSON/counts және vulnerability findings retry жасамайды.
+  Persistent unavailable audit әлі exit 1; production high/critical gate өзгерген жоқ.
+- Safe diagnostics project/scope және typed reason кодтарын береді: timeout, executable,
+  output buffer, process exit, registry/auth, JSON/report. Raw stdout/stderr/registry contents,
+  npm config және credentials шығарылмайды. Үлкейтілген report buffer да bounded (4 MiB).
+- Жаңа scripts/audit-dependencies.test.mjs, CI security tests командасы scripts/*.test.mjs;
+  release checklist timeout/failure semantics сипаттайды. Dependencies/lockfiles өзгермеді.
+- Verification: **15/15 security tests PASS**, source/full HEAD baseline және artifact checks
+  PASS, node syntax/diff whitespace checks PASS. Exact CI audit command NODE_ENV=test/CI=true
+  ортасында exit 0: backend full/prod 0, frontend full 10 moderate және prod 0, high/critical 0.
+- Түзетілген full frontend audit жаңа cold cache-пен **45 554ms**, attempts 1, толық жарамды
+  10 moderate report алды. Бұл workload ескі 25s budget-тен ұзақ екенін дәлелдейді.
+- GitHub Actions public API 404 берді; private/run logs алынбады, нақты CI rerun расталмады.
+  Репродукция жергілікті original flags/cold cache арқылы расталған. npm cache diagnostics
+  OS temporary directories ішінде, package install жасалған жоқ. Backend/frontend application
+  code/DB өзгермегендіктен unrelated app suites қайта орындалмады. Commit/push/main өзгерісі жоқ.

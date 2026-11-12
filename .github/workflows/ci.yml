@@ -47,7 +47,7 @@ jobs:
           MIGRATION_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: node scripts/check-release.mjs --source
       - name: Release security tests
-        run: node --test scripts/release-policy.test.mjs
+        run: node --test scripts/*.test.mjs
       - name: Install locked dependencies without lifecycle scripts
         run: |
           npm ci --prefix balaqoldau --ignore-scripts --no-audit --fund=false
