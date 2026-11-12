@@ -787,3 +787,177 @@ push/merge/deploy жоқ. Stage 9 басталған жоқ. Production-ready д
   Репродукция жергілікті original flags/cold cache арқылы расталған. npm cache diagnostics
   OS temporary directories ішінде, package install жасалған жоқ. Backend/frontend application
   code/DB өзгермегендіктен unrelated app suites қайта орындалмады. Commit/push/main өзгерісі жоқ.
+
+## Stage 9.1 — Secure backend admin authentication
+
+- Express architecture/public API/CORS және CI security gates сақталды. Жаңа same-origin-only
+  `/api/admin/session` GET, `/api/admin/login` POST, `/api/admin/logout` POST. ADMIN_ENABLED
+  default false; enabling requires DATABASE_URL/exact ADMIN_ORIGIN, production HTTPS.
+- Opaque random 256-bit session cookie; DB-де SHA-256 identifier ғана. HttpOnly,
+  SameSite=Strict, production Secure/__Host prefix/host-only Path=/; dev /api/admin.
+  Session-bound CSRF header + exact Origin + Fetch Metadata checks; login session/CSRF
+  rotation, server-side logout revocation, disabled-user and absolute expiry enforcement.
+  Bootstrap TTL 10 minutes, authenticated default 1h, configurable 5min–8h.
+- Native Node Argon2id m=19456 KiB/t=2/p=1, 16-byte random salt, 32-byte tag,
+  timingSafeEqual; unknown/disabled users dummy KDF. Max two concurrent KDF operations.
+  New passwords 15 Unicode characters minimum/256 UTF-8 bytes maximum. No default password.
+  Native API requires Node 24.7+, package/lock root engines metadata updated only;
+  dependency versions/integrity entries unchanged, no package installed.
+- IP login limiter 5/15min including success; admin/bootstrap limiter 60/15min.
+  Zod strict JSON/query checks, bounded body, parameterized SQL and generic 4xx/503 errors;
+  email/password/hash/cookie/CSRF/DB details logs-қа шығарылмайды.
+- Append-only 002_admin_auth.sql: admin_users/admin_sessions, constraints/indexes/FK,
+  PUBLIC access revoked. 001 unchanged. Local migration applied only to balaqoldau_test;
+  synthetic admin fixtures transaction ROLLBACK. Dev/unrelated/balaqoldau_db unchanged.
+- Offline `npm run admin:create` accepts stdin JSON only, explicit ADMIN_PROVISION_DATABASE
+  and actual identity confirmation, fail-safe errors, no overwrite/registration endpoint.
+  Provisioning command success path was not run on real data; no real accounts created.
+
+### Файлдар
+
+New backend/src/admin/{password,repository,routes,provision}.ts,
+backend/migrations/002_admin_auth.sql, backend/tests/admin.test.mjs,
+backend/tests/integration/admin.test.mjs. Updated backend/src/app.ts/config/env.ts,
+backend/package.json/package-lock.json (engine metadata), both env examples,
+backend/README.md, README.md, docs/DEPLOYMENT.md, PROGRESS.md.
+
+### Verification / remaining launch gates
+
+- Initial auth tests failed before implementation. Final backend build/lint/typecheck PASS,
+  **111/111 unit tests PASS**, skipped 0; dedicated DB integration **28/28 PASS**, skipped 0.
+  Tests cover Argon2 salts/verification/overload, disabled/expired/rotated/revoked sessions,
+  HttpOnly/Secure/SameSite, origin/CSRF/input/media validation, unknown-account uniform error,
+  rate limit, SQL injection, migration idempotency/constraints and safe provisioning failures.
+- Frontend build (tsc included), lint, **29/29 tests PASS**; release security **15/15 PASS**.
+  Full-HEAD migration baseline source guard, built artifact guard, diff whitespace PASS.
+- Audits exit 0: backend all/prod 0; frontend prod 0, all 10 moderate dev-tool findings.
+  Existing pgpass deprecation warning remains. Browser suite not rerun: frontend unchanged.
+- Auth stays disabled until operator migration/grants/offline provisioning and real HTTPS
+  ingress tests. Runtime SELECT admin identity/hash and SELECT/INSERT/DELETE sessions only;
+  separate provisioner privileges documented, roles/credentials not modified. Session expiry
+  purge scheduling/storage monitoring not operational; multi-instance needs shared/edge
+  limiter, distributed account-abuse/MFA controls need a later security review.
+- Stage 9.1 implementation/local verification complete; no admin UI/RBAC implemented.
+  No commit/push/main/deploy, no Stage 9.2. Main hash unchanged.
+
+## Stage 9.2 — Server-side RBAC және append-only security audit
+
+- Stage 9.1 inspected and preserved. Roles: Editor (program read/draft write), Reviewer
+  (program read/review), Admin (listed capabilities plus publish/taxonomy/role management/audit).
+  Unknown/missing role/permission denies; no wildcard Admin grant. Program/taxonomy permissions
+  are contracts only: CRUD/admin UI is not implemented. New authorization.ts owns the matrix.
+- GET /api/admin/access returns own role/capabilities; GET /api/admin/audit-log is Admin-only,
+  bounded page/limit; POST /api/admin/users/:uuid/role is Admin-only + Origin/CSRF/strict JSON.
+  Authenticated forbidden = 403, unauthenticated = 401. No client/header/cookie role claims.
+- Live role joins on every request, no privilege cached in sessions. Role mutation locks actor
+  and target rows in stable order, rechecks current Admin authority, denies self-role changes
+  (UUID case included), missing/disabled targets and unauthorized actors. Grant/revoke affects
+  existing cookies immediately on subsequent requests. Role mutation/audit INSERT atomic.
+- Append-only 003_admin_rbac.sql: constrained role column default Editor (no automatic Admin),
+  immutable audit table with statement UPDATE/DELETE/TRUNCATE rejection trigger and indexes.
+  Migrations 001/002 remain unchanged. No FK rewrite/cascade of historical audit UUIDs.
+- Audit events: login success/failure, logout, RBAC denials, role changes, known-session CSRF
+  denials, audit reads and offline provisioning. Finite event/permission/roles, actor/target UUID,
+  timestamp only; no emails/passwords/hash/tokens/IP/body/cookies. Audit failure denies access
+  or mutation with generic 503. Pre-session malformed/origin/rate-limit failures are not all
+  persisted (documented amplification/privacy boundary).
+- Offline provisioning default Editor, explicit ADMIN_PROVISION_ROLE=admin for operator
+  bootstrap; user creation/audit is one SQL statement. No real account/role/grants changed.
+
+### Файлдар
+
+New backend/src/admin/authorization.ts, backend/migrations/003_admin_rbac.sql,
+backend/tests/rbac.test.mjs, backend/tests/integration/rbac.test.mjs.
+Updated backend/src/admin/{routes,repository,provision}.ts, integration/admin.test.mjs,
+both env examples, backend/README.md, docs/DEPLOYMENT.md, PROGRESS.md.
+Existing uncommitted Stage 9.1 work preserved. No dependency/version/CI gate changes.
+
+### Verification
+
+- Initial RBAC unit test failed before implementation. Final backend build/lint/typecheck
+  PASS; **113/113 unit tests PASS**, skipped 0. Matrix/prototype/unknown permission/default
+  denial, defensive policy copy, 403/audit and audit-unavailable 503 tests included.
+- Dedicated PostgreSQL **36/36 PASS**, skipped 0. 401/403 role matrix, Editor/Reviewer
+  self/other-user escalation attempts, forged headers, CSRF/UUID/body validation, Admin self
+  protection, live promotion/demotion with same cookie, DB actor authority recheck,
+  role constraints, immutable audit and log redaction tested. Audit-insert rejection triggers
+  SQL statement rollback: role remains unchanged. Temporary test-only triggers/fixtures
+  rolled back; append-only migration persisted only in balaqoldau_test.
+- Existing Stage 9.1 auth tests still pass and assert successful login/logout audit events.
+  Frontend build/lint/typecheck and **29/29 tests PASS**; release security **15/15 PASS**;
+  full-HEAD migration policy/source and actual artifact guards PASS. Whitespace check PASS.
+- npm audit gate exit 0: backend all/prod 0; frontend prod 0, all 10 moderate dev-tool findings.
+  No installed/updated packages. Existing pgpass deprecation warning remains.
+- Dev/balaqoldau_db/unrelated DB not modified; no actual contact cleanup, real user role
+  changes or DB role grants. No commit/push/merge/main/deploy; no next stage started.
+
+Stage 9.2 implementation/local verification complete. Auth remains disabled by default.
+Runtime column grants, authorized initial Admin bootstrap, HTTPS staging verification,
+audit retention/archive/privacy policy and owner/superuser separation remain operator launch
+gates. Append-only trigger is not tamper-proof against a DB owner/superuser who can remove it.
+Multi-instance/shared limiting and future program ownership/status guards remain future scope.
+
+## Stage 9.3 — Final admin security hardening / validation
+
+### Confirmed findings and fixes
+
+- IP/process-only login limits were bypassable across instances/restarts/IPs. Migration 004
+  adds shared per-enabled-account counters (10 attempts/15 minutes, successes included),
+  reserved atomically before Argon2. Existing 5/IP/15min limiter remains. Unknown/disabled/
+  throttled accounts still perform dummy KDF and return the same generic 401. No email/IP
+  or account throttle state is added to logs; temporary budget exhaustion remains monitorable
+  operational risk, not a permanent account lock.
+- Password changes during/after verification were not bound to session issuance; old sessions
+  could survive an out-of-band reset. Credential versions plus a DB password-change trigger
+  invalidate old sessions, and login issuance checks the exact verified hash/current version
+  with account locking. Single-use pre-auth consumption, cookie/CSRF rotation preserved.
+- Role mutation checked current role but not session validity at the mutation statement;
+  audit reads relied on middleware authority. Both now recheck active session/version/role
+  in the protected statement. Audit-read logging/read and role mutation/logging remain atomic.
+  DB wall clock replaces transaction-start now() for expiry decisions. Already-authorized
+  in-flight operations may complete concurrently with logout; later requests cannot use it.
+- A new regression proved disabling then re-enabling revived old cookies. 004 had already
+  been applied in test DB, so it was preserved; append-only 005 adds automatic version advance
+  on disable. Re-enable now requires fresh login. Original migrations 001–003 unchanged.
+- Production admin startup previously accepted owner/superuser DB credentials. New read-only
+  catalog gate rejects owner/elevated memberships, excessive object/column privileges, missing
+  required grants/triggers and trigger-bypass capability before opening HTTP. Audit id/time
+  INSERT and all audit column UPDATE are rejected; runtime never creates accounts or changes
+  passwords/disabled/version. No PostgreSQL roles/grants/credentials were modified.
+
+### Files
+
+New backend/migrations/004_admin_hardening.sql, 005_admin_disable_revocation.sql,
+backend/src/admin/database-security.ts, backend/tests/hardening.test.mjs,
+backend/tests/integration/hardening.test.mjs. Updated admin repository/routes, lifecycle,
+lifecycle tests, RBAC integration call signature, backend README/production env example,
+docs/DEPLOYMENT.md and PROGRESS.md. Existing Stage 9.1–9.2 uncommitted changes preserved.
+No dependencies, UI, parent accounts, CRUD, existing migrations or CI gates changed.
+
+### Actual verification
+
+- Backend build/lint/typecheck PASS; unit **116/116 PASS**, skipped 0.
+- Dedicated PostgreSQL **43/43 PASS**, skipped 0: shared account budgets/reset, unknown-user
+  response uniformity, fixation/single-use pre-auth, old-CSRF denial, credential reset,
+  revoked/expired/disabled/demoted authority, disable/re-enable and catalog SQL execution.
+  The migration-owner test connection correctly fails runtime privilege validation.
+  Earlier disable/re-enable regression failed before 005; then passed. A catalog-column
+  overload error was caught by direct SQL integration and corrected with documented PG
+  privilege functions; no error was swallowed into a false passing catalog test.
+- Frontend build/lint/typecheck and **29/29 tests PASS**. Built-dist Chrome **24/24 PASS**,
+  real dev backend received GET only; no admin UI or actual contact submission involved.
+- Release security **15/15 PASS**; full-HEAD append-only source/migration guard and actual
+  artifact guard PASS; git diff whitespace check PASS (Windows line-ending warnings only).
+- Audit command exit 0: backend all/prod 0; frontend prod 0, all 10 moderate dev-tool findings.
+  No package installed/upgraded. Existing pgpass deprecation warning remains.
+- Only balaqoldau_test received append-only migrations 004/005; synthetic accounts/sessions/
+  counters/test triggers rolled back. Dev/balaqoldau_db/unrelated databases not changed;
+  no real user credential/role changes or production infrastructure operations.
+
+Stage 9.3 implementation/local verification complete. A positive staging run under the actual
+restricted runtime role is still required (unit safe-result branch is not that certification).
+Also pending: real HTTPS/proxy/cookie tests, operator recovery and grant-drift monitoring,
+expiry/audit retention scheduling and external privileged-operator controls. Audit outages
+fail closed; failed logout reports 503 and needs retry/operator revocation, never false success.
+DB owners/superusers can defeat triggers; no tamper-proof audit or public production readiness
+claim. No commit/push/merge/deploy/main changes, no next stage started.

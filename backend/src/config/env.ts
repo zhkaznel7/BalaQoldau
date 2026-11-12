@@ -24,7 +24,16 @@ const environmentSchema = z.object({
   RATE_LIMIT_WINDOW_MS: integer('60000', 2147483647),
   RATE_LIMIT_MAX: integer('100', 100000),
   DATABASE_URL: databaseUrlSchema.optional(),
+  ADMIN_ENABLED: z.enum(['true', 'false']).default('false').transform(value => value === 'true'),
+  ADMIN_ORIGIN: origin.optional(),
+  ADMIN_SESSION_SECONDS: integer('3600', 28800).refine(value => value >= 300),
 }).superRefine((value, context) => {
+  if (value.ADMIN_ENABLED && (!value.DATABASE_URL || !value.ADMIN_ORIGIN)) {
+    context.addIssue({ code: 'custom', path: ['ADMIN_ENABLED'], message: 'Database and admin origin required' });
+  }
+  if (value.ADMIN_ENABLED && value.NODE_ENV === 'production' && !value.ADMIN_ORIGIN?.startsWith('https://')) {
+    context.addIssue({ code: 'custom', path: ['ADMIN_ORIGIN'], message: 'HTTPS required' });
+  }
   if (value.NODE_ENV !== 'production') return;
   if (!value.DATABASE_URL) context.addIssue({ code: 'custom', path: ['DATABASE_URL'], message: 'Required in production' });
   if (value.CORS_ALLOWED_ORIGINS.some(item => !item.startsWith('https://'))) {

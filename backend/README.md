@@ -1,4 +1,169 @@
-# BalaQoldau backend — Stage 8.2
+# BalaQoldau backend — Stage 9.3
+
+## Stage 9.3 — Security hardening
+
+Append-only `004_admin_hardening.sql` adds persistent login counters and credential versioning;
+`005_admin_disable_revocation.sql` ensures disable/re-enable never resurrects old sessions.
+001–003 remain unchanged. Apply 004/005 before enabling the updated admin backend.
+
+- Existing IP/process limit remains 5 attempts/15 minutes. Additionally, each enabled account
+  gets **10 attempts/15 minutes shared through PostgreSQL**, including successful attempts.
+  Atomic counter reservation happens before Argon2. Unknown/disabled/throttled accounts use
+  dummy Argon2 and the same generic 401; no account-existence/rate state is disclosed.
+  Account budget rolls over automatically, never a permanent lock. An attacker can still
+  exhaust a known account's temporary budget: monitoring and recovery ownership are needed.
+- Password-hash changes automatically increment credential_version. Existing authenticated
+  sessions stop verifying; login captures the current version. The post-KDF SQL checks the
+  exact verified hash, active account and unexpired single-use bootstrap before issuance.
+  Disabling an account also advances the version; re-enabling requires a fresh login.
+- Role changes recheck the active session/credential version in the mutation statement.
+  Audit reads recheck current Admin authority/session and write the audit event in the same
+  SQL statement as the protected read. User-row locks serialize credential/role changes;
+  no UPDATE privilege on sessions is needed. Already-authorized in-flight operations may
+  complete concurrently with logout; later requests cannot use a revoked session.
+- All session-expiry decisions use database wall-clock time rather than transaction-start
+  `now()`. Absolute expiry, cookie flags, CSRF/origin rules, rotation and fail-closed audit stay.
+- With ADMIN_ENABLED=true in production, startup performs a read-only catalog privilege check
+  before listening. Missing schema/grants, superuser/elevated-role membership, DB/schema
+  CREATE/ownership, sensitive user-column writes, session UPDATE and audit mutation/DDL-related
+  grants are rejected. The operator must grant SELECT on necessary user fields (including
+  credential_version/login counters), UPDATE(role,login_attempts,login_window_ends) only;
+  session SELECT/INSERT/DELETE; audit SELECT plus INSERT of allowed event columns.
+  No user INSERT/DELETE or password/disabled/credential-version UPDATE for runtime.
+  Column-level grants are checked too: audit UPDATE and explicit id/timestamp INSERT are
+  forbidden, and audit/password/disable triggers must be enabled. Runtime cannot set
+  session_replication_role to bypass triggers. Privilege checks use PostgreSQL's
+  [catalog inquiry functions](https://www.postgresql.org/docs/18/functions-info.html#FUNCTIONS-INFO-ACCESS-TABLE).
+  The existing public API grants remain necessary; this admin check does not replace a
+  complete infrastructure/role-membership review or monitoring of later grant drift.
+
+The test DB uses a migration/owner connection and correctly fails the runtime privilege check;
+unit tests cover a successful safe result, but **a real least-privilege positive staging run is
+still required**. No roles/credentials were created or changed to run tests. Provisioner/migrator
+credentials must not be used by the production runtime. Migration/auth/retention jobs stay separate.
+Node/Argon2 dependencies and CI security thresholds are unchanged. No admin UI/parent accounts/CRUD.
+
+## Stage 9.2 — Server-side RBAC және audit
+
+Append-only migration `003_admin_rbac.sql` adds editor/reviewer/admin application roles.
+Existing accounts become **Editor**, not Admin. Fresh offline provisioning defaults to Editor;
+the authorized operator explicitly sets `ADMIN_PROVISION_ROLE=admin` to bootstrap the first
+Admin. No real accounts/production roles are changed during implementation.
+
+| Role | Capabilities |
+|---|---|
+| Editor | programs:read, programs:draft:write |
+| Reviewer | programs:read, programs:review |
+| Admin | all above, programs:publish, taxonomy:manage, users:roles:manage, audit:read |
+
+Program/taxonomy capabilities are contracts for future handlers, **not implemented CRUD**.
+Future resource handlers must check both permission and resource status/ownership. Reviewer
+cannot publish or assign roles; Editor cannot approve/publish. Unknown roles/permissions deny.
+No permissions come from body/query/headers or cached cookie claims; each request joins the
+live user role. Existing login/session/logout JSON contracts and CSRF/cookie controls remain.
+
+| Endpoint | Authorization |
+|---|---|
+| GET /api/admin/access | authenticated known role; own id/role/permissions only |
+| GET /api/admin/audit-log?page=1&limit=20 | Admin only; max limit 50/page 10000, newest first, no total count |
+| POST /api/admin/users/:uuid/role | Admin only, JSON `{role:editor\|reviewer\|admin}`, valid Origin/CSRF |
+
+Unauthenticated access = 401, authenticated but insufficient permission = 403. Strict
+query/body/UUID/role validation rejects unknown fields, including privilege-bearing extras.
+Self-role changes and unknown/disabled targets return 403. Role mutation locks actor/target
+rows in stable order and rechecks current Admin authority in the same SQL statement; role
+update and audit INSERT are atomic. A failed audit write prevents successful mutation (503).
+An already in-flight request can finish; subsequent requests read the new role immediately.
+
+Audit records login success/failure, logout, RBAC denial, role changes, session-known CSRF
+denial, audit-read attempts and offline account creation. Only UUID actor/target, finite event,
+permission, old/new role and DB timestamp are stored; no email, password/hash, IP, token,
+request URL/body or cookie. Anonymous/pre-auth bootstrap is not logged as a login.
+Invalid origin/malformed-cookie/body and rate-limit rejection can happen before session/DB
+access and are not all persisted, avoiding an unauthenticated audit-write amplification path.
+Audit write failure yields safe 503, never an authorization bypass.
+
+Audit table rejects UPDATE/DELETE/TRUNCATE through a statement trigger, even for application
+Admin (which is not a PostgreSQL role). This is append-only application history, **not proof
+against a database superuser/owner who can remove triggers**. Audit rows intentionally have
+no account FK cascade; historical UUIDs survive future account deletion. UUIDs remain linked
+identifiers: privacy owner must define audit retention/access/archive policy before launch.
+No audit purge/archive automation is installed; the contact retention job does not touch it.
+
+Runtime grants must be reviewed by the operator: SELECT on needed admin_users columns
+(including role/credential version/login counters), UPDATE(role,login_attempts,login_window_ends) only;
+SELECT/INSERT/DELETE admin_sessions; SELECT audit log
+and INSERT(event,actor_id,target_id,permission,previous_role,new_role) only. No audit
+UPDATE/DELETE/TRUNCATE, DDL, table ownership or superuser. Offline provisioner needs user
+INSERT and audit INSERT, separately from runtime. PostgreSQL roles/grants were not changed.
+Application authorization remains mandatory because one shared runtime DB role cannot itself
+distinguish Editor/Reviewer/Admin users. Keep raw audit SQL access restricted.
+
+Migration 002/001 are immutable; apply 003 before enabling auth. Integration tests use only
+balaqoldau_test with transaction rollback. Admin UI, user CRUD, program CRUD and RBAC UI
+are not part of this stage.
+
+## Stage 9.1 — Admin authentication
+
+Node **24.7+** қажет: [native Argon2 API](https://nodejs.org/docs/latest-v24.x/api/crypto.html#cryptoargon2algorithm-parameters-callback).
+Жаңа dependency жоқ. Argon2id m=19456 KiB, t=2, p=1, salt 16 bytes, tag 32 bytes —
+[OWASP baseline](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html).
+Бір process-та ең көбі екі KDF қатар жүреді; overload safe 503 береді.
+
+Auth әдепкіде `ADMIN_ENABLED=false`. Enable үшін DATABASE_URL, exact ADMIN_ORIGIN,
+production HTTPS/DB verify-full және migrations 002–005 қажет. Dev schema өзгертілген жоқ;
+іске қоспас бұрын operator backup/identity/grants тексеріп, append-only `npm run db:migrate`
+орындайды. balaqoldau_db қолданылмайды. Real admin account автоматты жасалмайды.
+
+| Endpoint | Behavior |
+|---|---|
+| GET /api/admin/session | 200 `{data:{authenticated,admin:{id}\|null,csrfToken}}`; missing/expired cookie → anonymous 10-minute bootstrap |
+| POST /api/admin/login | JSON `{email,password}`, exact Origin және X-CSRF-Token міндетті; success 200, generic credentials failure 401 |
+| POST /api/admin/logout | JSON `{}`, exact Origin + X-CSRF-Token; server session DELETE, cookie clear, 204 |
+
+Session ID — random 256-bit opaque cookie, DB-де тек SHA-256. CSRF token сессияға байланған,
+login кезінде екеуі де ауысады, ескі session жарамсыз. Cookie HttpOnly, SameSite=Strict,
+production Secure/__Host prefix/Path=/, dev Path=/api/admin. Domain берілмейді.
+Authenticated TTL default 3600s, allowed 300–28800, absolute (sliding жоқ).
+Disabled users бірден verify-дан өтпейді. Account existence, password/hash/SQL response/log-қа шықпайды.
+Invalid query/body/cookie, CSRF/origin және media type қауіпсіз 4xx; DB/KDF failure 503.
+
+Admin UI/API бір origin-де reverse proxy арқылы қызмет етуі тиіс; cross-origin credentialed
+CORS қосылған жоқ. Public CORS/API өзгермейді. Production тек HTTPS сұрауын қабылдайды;
+trusted loopback proxy forwarding headers-ті overwrite етуі тиіс.
+Login: IP бойынша 5 attempts/15 minutes (success қоса), bootstrap/admin 60/15 minutes.
+Limiter memory-based, single-process: multi-instance алдында shared/edge limiter қажет;
+distributed credential stuffing үшін account-aware/MFA controls бөлек review күтеді.
+RBAC/admin UI/user registration/password reset API бұл кезеңге кірмейді.
+
+### Offline account provisioning (operator only, implementation кезінде орындалмады)
+
+`npm run build` кейін backend cwd-де operator-only database credentials қолданыңыз;
+ADMIN_PROVISION_DATABASE нақты target аты болсын. `npm run admin:create` тек stdin JSON
+`{email,password}` қабылдайды (TTY/CLI password arguments жоқ), 15 Unicode character minimum,
+256 UTF-8 byte maximum; duplicate email safe failure, existing account overwrite жоқ.
+Password-ты shell history/arguments/logs-қа салмаңыз. Windows secure prompt үлгісі:
+
+```powershell
+$adminCredential = Get-Credential -Message 'New BalaQoldau admin (offline provisioning)'
+try {
+  @{email=$adminCredential.UserName;password=$adminCredential.GetNetworkCredential().Password} |
+    ConvertTo-Json -Compress | node --env-file-if-exists=.env dist/admin/provision.js --create
+} finally { Remove-Variable adminCredential }
+```
+
+Transcript/debug logging қолданбаңыз; managed plaintext stdin/process memory ішінде уақытша
+болады. Target identity insert алдында тексеріледі. Production TLS және бөлек provisioner
+INSERT privilege керек; Stage 9.2 runtime/audit grants толық матрицасы жоғарыда берілген.
+admin_sessions үшін SELECT/INSERT/DELETE ғана алсын. DB рөлдері автоматты өзгермейді.
+Password rotation/disable оператор transaction-ында hash update + сол admin session revocation
+арқылы жасалсын; secret/hash-тарды SQL console history-ге жазбаңыз.
+
+Expired sessions әр сұрауда жарамсыз, бірақ автоматты purge әлі іске қосылмаған.
+Operator admin_sessions expiry cleanup schedule/monitoring/storage budget бекітсін;
+contact retention job өзгермейді. Least-privilege/TLS/real ingress verification — launch gates.
+`npm test` — unit/security, `npm run test:db` — dedicated balaqoldau_test, temporary admin
+fixtures ROLLBACK. Local test suite migration 002-ні тек test DB-ге қолданады.
 
 ## Stage 8.2 — Contact privacy & retention
 

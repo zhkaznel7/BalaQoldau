@@ -11,7 +11,7 @@ Express/TypeScript API, PostgreSQL. Public API тек `published AND NOT is_demo
 - [Нақты тексеру нәтижелері](PROGRESS.md)
 - [CI және release қауіпсіздігі](docs/RELEASE_CHECKLIST.md)
 
-Node.js 24+ қажет. Екі бөлек npm lockfile бар; әр жобада `npm ci --ignore-scripts`
+Node.js 24.7+ қажет (Stage 9.1 native Argon2id). Екі бөлек npm lockfile бар; әр жобада `npm ci --ignore-scripts`
 қолданылады. `.env` бар болса қайта жазбаңыз. Құпияларды frontend `VITE_*` мәндеріне
 бермеңіз. Development: backend `npm run dev`, frontend `npm run dev` (бөлек терминалдар).
 Production frontend — `balaqoldau/dist`, backend — `backend/dist/server.js`.

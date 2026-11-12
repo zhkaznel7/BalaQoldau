@@ -9,6 +9,7 @@ import { apiRouter } from './api/routes.ts';
 import type { Database } from './api/repository.ts';
 import type { ReadinessCheck } from './db/readiness.ts';
 import { readinessRouter } from './routes/ready.ts';
+import { adminRouter } from './admin/routes.ts';
 
 export function createApp(config: Config, database?: Database, checkReady: ReadinessCheck = async () => false) {
   const app = express();
@@ -21,6 +22,8 @@ export function createApp(config: Config, database?: Database, checkReady: Readi
     response.setHeader('Cache-Control', 'no-store');
     next();
   });
+  // Admin is same-origin only, with its own CSRF, JSON and rate limits. Public CORS stays credential-free.
+  app.use('/api/admin', adminRouter(config, database));
   app.use(cors({
     origin(value, callback) {
       // Origin-less clients (health probes, curl) are allowed; CORS is not authentication.

@@ -35,6 +35,20 @@ test('production database failure closes the pool and does not start HTTP', asyn
   assert.equal(state.ends, 1);
   await assert.rejects(startServer({ ...config, NODE_ENV: 'production' }), { message: 'Backend startup failed' });
 });
+
+test('production admin startup rejects unsafe database permissions before listening', async () => {
+  const { pool, state } = fakePool();
+  await assert.rejects(startServer({ ...config, NODE_ENV: 'production', ADMIN_ENABLED: true }, pool), { message: 'Backend startup failed' });
+  assert.equal(state.ends, 1);
+});
+
+test('production admin startup accepts a successful least-privilege check', async t => {
+  const { pool } = fakePool();
+  pool.query = async () => ({ rows: [{ safe: true }] });
+  const runtime = await startServer({ ...config, NODE_ENV: 'production', ADMIN_ENABLED: true }, pool);
+  t.after(() => runtime.shutdown());
+  assert.ok(runtime.server.listening);
+});
 test('shutdown drains active HTTP requests before ending the pool', async t => {
   const { pool, state } = fakePool();
   let began, finish;

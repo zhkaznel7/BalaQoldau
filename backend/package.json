@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=24.0.0"
+    "node": ">=24.7.0"
   },
   "scripts": {
     "dev": "node --env-file=.env --watch --experimental-strip-types src/server.ts",
@@ -16,7 +16,8 @@
     "db:migrate": "node --env-file-if-exists=.env dist/db/cli.js migrate",
     "db:seed": "node --env-file-if-exists=.env dist/db/cli.js seed",
     "contact:cleanup": "node --env-file-if-exists=.env dist/retention/cli.js",
-    "test:db": "npm run build && node --env-file-if-exists=.env --test tests/integration/*.test.mjs"
+    "test:db": "npm run build && node --env-file-if-exists=.env --test tests/integration/*.test.mjs",
+    "admin:create": "node --env-file-if-exists=.env dist/admin/provision.js --create"
   },
   "dependencies": {
     "cors": "2.8.6",

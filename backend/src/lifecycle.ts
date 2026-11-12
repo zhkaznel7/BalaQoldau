@@ -3,6 +3,7 @@ import type { Pool } from 'pg';
 import type { Config } from './config/env.ts';
 import { createApp } from './app.ts';
 import { createReadinessCheck } from './db/readiness.ts';
+import { adminDatabaseSafe } from './admin/database-security.ts';
 
 type BackendPool = Pick<Pool, 'query' | 'connect' | 'end'>;
 
@@ -19,6 +20,7 @@ export async function startServer(config: Config, pool?: BackendPool) {
   server.keepAliveTimeout = 5000;
   try {
     if (config.NODE_ENV === 'production' && !await check()) throw new Error('Database is not ready');
+    if (config.NODE_ENV === 'production' && config.ADMIN_ENABLED && !await adminDatabaseSafe(pool)) throw new Error('Unsafe admin database permissions');
     await new Promise<void>((resolve, reject) => {
       server.once('error', reject);
       server.listen(config.PORT, config.HOST, () => { server.removeListener('error', reject); resolve(); });

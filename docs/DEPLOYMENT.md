@@ -161,3 +161,37 @@ aggregate uptime/5xx/429/latency бақылауын және жауапты ке
 Stage 8.3: [CI және release checklist](RELEASE_CHECKLIST.md). Workflow deploy жасамайды;
 TLS/roles/backup/monitoring/retention schedule нақты ортада оператор арқылы тексеріледі.
 GitHub branch protection автоматты орнатылмайды.
+
+## Stage 9.1–9.3 admin auth/RBAC launch gate
+
+Admin auth әдепкіде өшірулі. [Backend auth/RBAC/provisioning contract](../backend/README.md)
+бойынша migrations 002–005, Node 24.7+, runtime-only grants және offline provisioner тексерілсін.
+Admin UI/API same HTTPS origin-де reverse proxy арқылы қызмет етеді; credentialed cross-origin
+CORS жоқ. Password/CSRF/Cookie/Set-Cookie headers, bodies және provisioning input логталмасын.
+Session-table expiry purge/storage budget және shared/edge login limiter multi-instance
+алдында бекітілсін. Actual runtime roles/production TLS/ingress tests бұл кезеңде орындалмады.
+Existing application users 003 арқылы Editor болады; first Admin тек authorized offline
+operator-дың explicit ADMIN_PROVISION_ROLE=admin таңдауы арқылы беріледі. Audit INSERT және
+role UPDATE(role) column grants қаралсын; audit UPDATE/DELETE/TRUNCATE/DDL/ownership берілмесін.
+Audit archive/retention/access policy және superuser/owner separation pre-launch review күтеді.
+
+Stage 9.3: production ADMIN_ENABLED=true startup performs a fail-closed read-only privilege check.
+Use a separate non-owner runtime login with SELECT on the necessary admin_users columns and
+UPDATE(role,login_attempts,login_window_ends) only; session SELECT/INSERT/DELETE; audit SELECT and
+restricted event-column INSERT. No password/disabled/credential-version writes, account INSERT,
+ownership/CREATE/elevated groups or audit mutation. Public program-view/taxonomy/contact grants
+still apply. Do not weaken the startup check to reuse operator/migrator credentials.
+Column-level grants are checked, including forbidden audit id/timestamp INSERT; password,
+disable-revocation and audit immutability triggers must be enabled. No runtime permission to
+set session_replication_role. Keep operator credentials and trigger/DDL maintenance separate.
+
+Staging must verify both a correct runtime role and deliberately missing/excessive grants, actual
+HTTPS/proxy cookie behavior, multi-instance 10-attempt account budget, credential reset and logout
+revocation. Roles were not modified locally; the positive real-runtime check is not yet certified.
+Monitor audit availability, temporary account-budget exhaustion, expiry-table growth and grant drift
+without logging names/emails/IP/passwords/tokens. Define authorized password-reset/temporary-lock
+recovery procedures. A DB owner can defeat audit triggers: separate privileged credentials and
+external backup/log access controls remain mandatory. No deployment or scheduler is installed here.
+After disabling and re-enabling an account, old cookies remain invalid; require a new login.
+Audit failure returns 503 rather than claiming success; failed logout must be retried, and
+the operator may explicitly revoke affected sessions through the authorized recovery procedure.
