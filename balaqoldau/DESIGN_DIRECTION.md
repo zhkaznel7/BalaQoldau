@@ -1,26 +1,59 @@
-# BalaQoldau — Қамқорлық атласы
+# BalaQoldau — independent GovTech discovery
 
-## Existing product
+Current design: Stage 7.6, 2026-11-12. This supersedes the earlier atlas and Stage 7.5 landing-page composition.
 
-React 19 + TypeScript + Vite + Tailwind; React Router preserves `/`, `/find`, `/results`, `/program/:id`, `/favorites`. Search is an asynchronous local repository with city, age, family, type and text filters. Favorites persist in localStorage. All six records are fictional DEMO examples. No backend, authentication or application submission exists.
+## Stage 7.6 refinement
 
-## Skill research and editorial decisions
+References: [GOV.UK](https://www.gov.uk/) for search-led service directories and plain
+linked topics; [eGov](https://egov.kz/kk) for the Kazakhstan public-service context.
+The eGov text response remains limited. Neither branding nor page layout was copied.
+The original interface uses a compact search column beside a semantic three-step guide,
+then a two-column text directory. There are no marketing eyebrows, oversized hero text,
+icon-per-topic cards, promotional CTA panels or nested home form cards.
 
-Used `.agents/skills/ui-ux-pro-max/SKILL.md`, its design-system search, typography domain and React stack search. The narrowed `nonprofit community platform` search returned Hero + Features + CTA / Minimalism & Swiss Style; adopt its functional grid, type hierarchy and 200–250ms feedback. Applicable accessibility guidance: 16px readable body copy, controlled forms, clear navigation, 44px targets, focus rings, semantic labels and reduced motion. Humanist typography search returned Corporate Trust (Lexend / Source Sans 3) and News Editorial (Newsreader / Roboto). The initial aggregate classified the product as senior care: its sales, certification and blue-palette advice is inappropriate and is not adopted. The exact Cyrillic query returned no match; local Kazakh glyph support is an explicit implementation decision.
+H1 is 24–32px, corners 2px, topic links are underlined, results are separated list rows.
+A small original abstract interlaced SVG, inspired by ornamental rhythm, uses muted
+teal #197d89 as the single decorative accent. It is aria-hidden, noninteractive and not
+a state symbol. White/navy/blue, actual source facts and the independence notice remain.
+On widths <=960px the guide follows search. The #how anchor still focuses the guide.
+No photographs, new fonts, dependencies or backend changes were introduced.
 
-Retain the established humanist Segoe UI/system sans stack with complete local Kazakh glyph support instead of importing an unverified Latin-focused display font. Add an expressive, restrained Georgia serif accent only for short editorial captions. No external font dependency or font loading shift.
+## Design contract
 
-## Applied identity
+The homepage helps parents find support information through one prominent keyword search,
+with optional region, age and API-backed category filters. Results/details/favorites/contact
+share a white, navy, blue and gray system. The platform is independent: a visible notice in
+both header and footer states that it is not an official government website. No state seal,
+eGov logo, endorsement, invented program, count or verification badge is used.
 
-- Concept: a parent’s field guide to possibility, expressed through an atlas frame, branching SVG paths, indexed sections and a small compass-like brand motif.
-- Paper: `#FAF9FF`; ink: `#202035`; secondary text: `#625C70`; brand purple: `#7659E8`; action purple: `#6545CE` for readable white labels; mint: `#A8E6CF`; warm oat: `#F5EDDF`.
-- Solid color surfaces; fine rules; generous typography; fewer floating widgets; no decorative gradients, fake statistics, testimonials or authority seals.
-- Hero: editorial split layout, existing family illustration within a custom atlas composition, one clear search path, full-width compact finder.
-- Categories: indexed asymmetric composition with a large mint feature, warm education panel and two smaller supporting panels.
-- Discovery: quiet form controls, strong result headings, category labels, separated eligibility facts and visible favorites.
-- Details and forms share the same spacing, border, focus, color and type tokens.
-- Motion: one-time entrances and short state feedback, no perpetual decoration. Reduced motion removes nonessential transformations.
+Reference supplied by the owner: [eGov Kazakhstan](https://egov.kz/kk). Its public portal was
+consulted for institutional context; the text-only reference response was limited, so this
+is an original task-led layout, not a claimed pixel reproduction. Project frontend UI
+Engineering and installed UI/UX Pro Max accessibility/layout guidance informed the design.
+
+## Decisions
+
+- Content-first search replaces the photo hero. The photo with unconfirmed rights is no longer
+  rendered or requested; its asset/credits remain unchanged. Vite still copies public assets,
+  so licensing/removal review remains a launch gate. No new image or external font.
+- Four support-direction links use supported q searches, not invented backend category slugs.
+  Real categories/regions still come exclusively from the API. Empty results remain honest.
+- Segoe UI/system sans supports Kazakh characters. Body 16px, labels 14px, captions 12–13px;
+  restrained headings and 4/8px spacing rhythm. No decorative emoji, gradients or seals.
+- White surfaces, navy header notice, blue primary actions, thin gray rules and 2px corners.
+  The existing original heart wordmark remains in a simple blue mark; no government symbolism.
+- Each program retains actual source links and verifiedAt information in its detail view.
+  The published label describes API visibility, not government approval.
+- Native controls, one h1/main, skip link, 44px controls, visible 3px focus, linked form errors,
+  safe external links, loading/error/empty/success states and responsive disclosure navigation.
+- 320/375px: one-column forms/cards; 768px: readable stacked search; 1024px: two-column cards;
+  1440px: four direction links/three catalog columns. No fixed-width content overflow.
+- Decorative entrances and the unused scroll observer were removed. Reduced motion and
+  forced-colors rules remain; no dependency was installed and API contracts did not change.
 
 ## Verification
 
-Preserve existing business logic and URL contracts. Run production build and repository tests; check text/CTA token contrast with WCAG luminance calculation. Browser verification is reported separately when an automation tool is available.
+Run frontend build/lint/unit tests and the browser suite in both development and built-dist
+modes. Review desktop/mobile screenshots of all six pages, five-width layout/contrast checks,
+keyboard controls and real backend GET smoke. TEST fixtures never publish records. Manual
+NVDA/VoiceOver and production ingress testing remain separate launch gates, not WCAG claims.

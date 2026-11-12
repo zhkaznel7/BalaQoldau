@@ -1,11 +1,30 @@
-# BalaQoldau applied design system
+# BalaQoldau GovTech design system — Stage 7.6
 
-Project-specific interpretation of the installed UI/UX Pro Max skill, documented in `../../DESIGN_DIRECTION.md`.
+Current implementation: src/index.css (reset), src/refinements.css (tokens/components/layout).
+Rationale and reference limitations: [design direction](../../DESIGN_DIRECTION.md).
 
-Research: `nonprofit community platform --design-system` returned Hero + Features + CTA / Minimalism & Swiss Style. Adopt its functional grid, clear hierarchy, low-cost motion, 200–250ms feedback, AA contrast and reduced motion. The earlier `social services family editorial` result was misclassified as senior care; that generated recommendation is superseded by this reviewed file. No commercial sales widgets, fabricated proof or certification marks are appropriate.
+| Token | Value | Purpose |
+|---|---|---|
+| --paper / --surface | #ffffff | White page and forms |
+| --surface-soft | #f1f5f9 | Secondary panels |
+| --navy | #102e50 | Platform notice / identity |
+| --ink | #142b47 | Headings and body |
+| --muted | #526477 | Secondary text |
+| --action | #075ea8 | Buttons / links / focus |
+| --action-hover | #064d88 | Hover |
+| --accent | #F4B942 | Homepage search CTA and small original illustration/ornament; navy text |
+| --line | #d6dee8 | Card boundaries |
+| --field-line | #73849a | Input boundaries (3:1 on white) |
+| --error-ink / surface | #932b32 / #fff3f3 | Error with text/icon |
+| --success-ink / surface | #205c40 / #edf7f0 | Success with text/icon |
 
-Identity: Қамқорлық атласы. Retain purple #7659E8; use #6545CE for white-label action buttons, #202035 ink, #625C70 secondary text, #FAF9FF paper, #A8E6CF mint, #F5EDDF oat. Solid fills, thin rules, atlas linework. Humanist Segoe UI/system sans supports Kazakh locally; Georgia is restricted to editorial accents. No external fonts or new dependencies.
+System sans, body 16px/1.6, h1 24–32px, h2 20–24px, labels 14px. Max container 1240px;
+32/24/16px responsive gutters. Primary controls 48px; icon/navigation controls at least 44px.
+Borders 1px; main panel corners 2px; no decorative shadows, asymmetrical feature cards,
+background photography, emoji or animated entrances. Lucide icons have aria-hidden where
+adjacent text conveys their meaning. Error/success require text, not color alone.
 
-Layout: 1240px maximum including adaptive 20–40px gutters. 4/8px spacing rhythm. Hero + illustration + finder, asymmetric category composition, numbered process, dark ink CTA. Discovery uses reusable badges, facts and native form controls. Maintain existing routes and repository contracts.
-
-Accessibility: body 16px; labels 14px; captions at least 12px; minimum 44px controls; visible 3px focus; native keyboard form controls; Escape closes mobile menu; one live favorite status; decorative SVG hidden; reduced motion removes transitions and decorative movement. Mobile 375px, tablet 768px, desktop 1024/1440px rules.
+Header/footer explicitly identify an independent platform. Direction shortcuts use q only;
+API categories and all source/verification facts remain data-driven. Every existing route,
+URL filter, favorites and contact contract is retained. Keyboard/contrast/browser checks and
+manual assistive-technology limitations are recorded in PROGRESS.md.
