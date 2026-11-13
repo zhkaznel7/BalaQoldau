@@ -34,6 +34,18 @@ export async function userDatabaseSafe(db?: Database): Promise<boolean> {
       AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['SELECT','INSERT','DELETE']) p(name)
         WHERE NOT has_table_privilege('balaqoldau.user_saved_programs',p.name))
       AND current_setting('session_replication_role')='origin'
+      AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['balaqoldau.child_profiles','balaqoldau.child_preferences']) t(name)
+        WHERE NOT has_table_privilege(t.name,'SELECT') OR NOT has_table_privilege(t.name,'DELETE') OR has_table_privilege(t.name,'TRUNCATE,TRIGGER'))
+      AND NOT has_any_column_privilege('balaqoldau.child_preferences','UPDATE')
+      AND has_column_privilege('balaqoldau.child_preferences','child_id','INSERT')
+      AND has_column_privilege('balaqoldau.child_preferences','category_id','INSERT')
+      AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['user_id','slot','nickname','age','region_id']) c(name)
+        WHERE NOT has_column_privilege('balaqoldau.child_profiles',c.name,'INSERT'))
+      AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['nickname','age','region_id','version','updated_at']) c(name)
+        WHERE NOT has_column_privilege('balaqoldau.child_profiles',c.name,'UPDATE'))
+      AND NOT EXISTS(SELECT 1 FROM pg_attribute a WHERE a.attrelid='balaqoldau.child_profiles'::regclass AND a.attnum>0 AND NOT a.attisdropped
+        AND ((a.attname NOT IN ('user_id','slot','nickname','age','region_id') AND has_column_privilege(a.attrelid,a.attnum,'INSERT'))
+          OR (a.attname NOT IN ('nickname','age','region_id','version','updated_at') AND has_column_privilege(a.attrelid,a.attnum,'UPDATE'))))
       AND NOT has_parameter_privilege('session_replication_role','SET')
       AND EXISTS(SELECT 1 FROM pg_trigger WHERE tgrelid='balaqoldau.user_accounts'::regclass
         AND tgname='user_credential_rotation' AND tgenabled IN ('O','A')) AS safe

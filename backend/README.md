@@ -1,5 +1,10 @@
 # BalaQoldau backend — Stage 10.1
 
+Stage 15: [child-profile API, privacy, migration 010 and operator requirements](CHILD_PROFILES.md).
+Protected `/api/auth/children` CRUD and recommendations reuse existing user sessions,
+CSRF and Stage 14 matching. Apply 010 before starting this version; no real profiles
+or program records are seeded. Production runtime grants require an authorized operator.
+
 Stage 14: [public matching API and deterministic eligibility rules](../docs/MATCHING.md).
 Apply additive migration 009 before starting the updated API. Existing programs are
 not automatically certified or published. `npm run test:user-db` uses verified local

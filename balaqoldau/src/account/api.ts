@@ -1,6 +1,8 @@
 import type { AuthMessage, Language } from './translations.ts';
 import { isProgramId,parseProgram } from '../api/client.ts';
 import type { Page,Program } from '../api/client.ts';
+import {parseChild,parseChildOptions} from './children.ts';
+import type {ChildInput} from './children.ts';
 export interface UserProfile { id: string; email: string; language: Language }
 export interface UserSession { authenticated: boolean; user: UserProfile | null; csrfToken: string; resetAvailable: boolean }
 export interface DashboardProfile extends UserProfile {fullName:string|null;location:string|null;savedCount:number}
@@ -32,7 +34,7 @@ export function normalizeProfile(input:{fullName:string;location:string}):Profil
   return {fullName:fullName||null,location:location||null};
 }
 export function safeReturnTo(value:string|null):string {
-  if(!value||value.includes('\\')||[...value].some(character=>character.charCodeAt(0)<=32)||!/^\/(?:results|find|favorites|profile(?:\/saved)?|program\/[a-f0-9-]{36})(?:[?#]|$)/i.test(value))return '/profile';
+  if(!value||value.includes('\\')||[...value].some(character=>character.charCodeAt(0)<=32)||!/^\/(?:results|find|favorites|profile(?:\/(?:saved|children))?|program\/[a-f0-9-]{36})(?:[?#]|$)/i.test(value))return '/profile';
   try{const url=new URL(value,'https://local.invalid');return url.origin==='https://local.invalid'?url.pathname+url.search+url.hash:'/profile';}catch{return '/profile';}
 }
 export const validNewPassword = (value:string) => [...value].length>=8 && new TextEncoder().encode(value).length<=256;
@@ -53,11 +55,11 @@ export function createUserApi(fetcher:typeof fetch=fetch, expired:()=>void=()=>{
       if(response.status===401 && path!=='/login'){csrf='';epoch++;expired();}
       let code=''; try{const payload=object(await response.json()); code=String(object(payload.error).code);}catch{/* Never echo server details. */}
       const key:AuthMessage=response.status===401?(path==='/login'?'credentials':'expired'):response.status===403?'forbidden':response.status===429?'limited':
-        code==='RESET_UNAVAILABLE'?'noMail':code==='INVALID_RESET'?'invalidReset':code==='PASSWORD_POLICY'?'passwordInvalid':response.status===404&&path.startsWith('/saved-programs/')?'programUnavailable':response.status===409?'conflict':response.status===400?'invalid':'unavailable';
+        code==='CHILD_LIMIT'?'childLimit':path.startsWith('/children')&&response.status===404?'childMissing':path.startsWith('/children')&&response.status===409?'childConflict':path.startsWith('/children')&&response.status===400?'childInvalid':code==='RESET_UNAVAILABLE'?'noMail':code==='INVALID_RESET'?'invalidReset':code==='PASSWORD_POLICY'?'passwordInvalid':response.status===404&&path.startsWith('/saved-programs/')?'programUnavailable':response.status===409?'conflict':response.status===400?'invalid':'unavailable';
       throw new UserAuthError(response.status,key);
     }
     if(response.status===204)return null;
-    try{const payload=object(await response.json());return path.startsWith('/saved-programs?')?payload:payload.data;}catch{throw new UserAuthError(503,'unavailable');}
+    try{const payload=object(await response.json());return path.startsWith('/saved-programs?')||/^\/children\/[^/]+\/recommendations\?/.test(path)?payload:payload.data;}catch{throw new UserAuthError(503,'unavailable');}
   }
   function sessionData(value:unknown):UserSession {
     const data=object(value);
@@ -68,6 +70,17 @@ export function createUserApi(fetcher:typeof fetch=fetch, expired:()=>void=()=>{
   function accepted(value:unknown) {if(object(value).accepted!==true)throw new UserAuthError(503,'unavailable');}
   async function mutate<T>(work:()=>Promise<T>) {if(busy)throw new UserAuthError(409,'conflict');busy=true;epoch++;try{return await work();}finally{busy=false;epoch++;}}
   return {
+    async children(signal?:AbortSignal){const value=await request('/children','GET',undefined,signal);try{if(!Array.isArray(value)||value.length>20)throw new Error();return value.map(parseChild);}catch{throw new UserAuthError(503,'unavailable');}},
+    async childOptions(signal?:AbortSignal){try{return parseChildOptions(await request('/children/options','GET',undefined,signal));}catch(error){if(error instanceof UserAuthError)throw error;throw new UserAuthError(503,'unavailable');}},
+    createChild:(input:ChildInput)=>mutate(async()=>{try{return parseChild(await request('/children','POST',input));}catch(error){if(error instanceof UserAuthError)throw error;throw new UserAuthError(503,'unavailable');}}),
+    updateChild:(id:string,input:ChildInput,version:number)=>mutate(async()=>{if(!isProgramId(id))throw new UserAuthError(400,'childInvalid');try{return parseChild(await request('/children/'+id,'PATCH',{...input,version}));}catch(error){if(error instanceof UserAuthError)throw error;throw new UserAuthError(503,'unavailable');}}),
+    deleteChild:(id:string,version:number)=>mutate(async()=>{if(!isProgramId(id))throw new UserAuthError(400,'childInvalid');await request('/children/'+id,'DELETE',{version,confirm:true});}),
+    async childRecommendations(id:string,page=1,signal?:AbortSignal):Promise<Page<Program>>{
+      if(!isProgramId(id)||!Number.isInteger(page)||page<1||page>10000)throw new UserAuthError(400,'childInvalid');
+      const result=object(await request('/children/'+id+'/recommendations?page='+page+'&limit=20','GET',undefined,signal)),p=object(result.pagination);
+      if(!Array.isArray(result.data)||result.data.length>20||!['page','limit','total','totalPages'].every(k=>Number.isSafeInteger(p[k])&&Number(p[k])>=0)||p.page!==page||p.limit!==20||p.totalPages!==Math.ceil(Number(p.total)/20))throw new UserAuthError(503,'unavailable');
+      return {data:result.data.map(parseProgram),pagination:p as unknown as Page<Program>['pagination']};
+    },
     busy:()=>busy,
     async session(signal?:AbortSignal) {const before=epoch,result=sessionData(await request('/session','GET',undefined,signal));if(before===epoch && !signal?.aborted)csrf=result.csrfToken;return result;},
     async profile(signal?:AbortSignal){return profile(await request('/profile','GET',undefined,signal));},

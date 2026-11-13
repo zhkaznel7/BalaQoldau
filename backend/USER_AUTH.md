@@ -1,5 +1,9 @@
 # Stage 11 — User accounts
 
+Stage 15 reuses this exact regular-user session/CSRF mechanism for
+[/api/auth/children](CHILD_PROFILES.md). No admin privileges, extra authentication
+cookies or child accounts are introduced. Optional child profiles belong to parents.
+
 Stage 12 extends GET /profile and adds protected profile editing/saved-program endpoints:
 see [USER_PROFILE.md](USER_PROFILE.md) for migration 008, API contracts and runtime grants.
 

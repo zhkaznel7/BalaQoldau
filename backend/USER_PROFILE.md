@@ -1,5 +1,9 @@
 # Stage 12 — Profiles and saved programs
 
+Stage 15 adds an optional `/profile/children` area and protected child-profile API:
+[CHILD_PROFILES.md](CHILD_PROFILES.md). The scope statement below describes Stage 12;
+current child data is limited to nickname, age, existing region and category interests.
+
 Uses existing Stage 11 user sessions/CSRF, separate from admin RBAC. No children, family
 attributes, eligibility claims, application tracking, email changes or external data imports.
 

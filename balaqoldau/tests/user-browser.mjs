@@ -23,6 +23,8 @@ try{
   db=await pool.connect();await db.query('BEGIN');
   const suffix=randomUUID(),programIds=[];
   const category=(await db.query('INSERT INTO balaqoldau.categories(slug,name) VALUES($1,$2) RETURNING id',['test-browser-'+suffix,'TEST category — rollback only'])).rows[0].id;
+  const childRegion='test-child-browser-'+suffix;
+  await db.query('INSERT INTO balaqoldau.regions(slug,name) VALUES($1,$2)',[childRegion,'TEST child region — rollback only']);
   for(let i=0;i<2;i++){
     const id=randomUUID();programIds.push(id);
     await db.query(`INSERT INTO balaqoldau.programs(id,slug,category_id,title,description,status,source_url,source_name,verified_at,age_max)
@@ -77,6 +79,23 @@ try{
   await browser.navigate(origin+'/profile?lang=ru');await until(`document.querySelector('#profile-name')?.value==='TEST Parent'`);
   assert.equal(await evaluate(`document.querySelector('#profile-location').value`),'TEST city');assert.equal(await evaluate(`!!document.querySelector('input[type=email]')`),false);
   pass('profile edits normalize and persist; authenticated email remains read-only');
+  await browser.navigate(origin+'/profile/children?lang=ru');await until(`!!document.querySelector('.children-dashboard')&&!document.querySelector('.child-card')`);
+  await button('Добавить профиль ребёнка');await until(`!!document.querySelector('#child-age')`);
+  await setValue('#child-nickname','TEST child');await setValue('#child-age','6');await setValue('#child-region',childRegion);
+  await evaluate(`[...document.querySelectorAll('.child-preferences label')].find(el=>el.textContent.includes('rollback only')).querySelector('input').click()`);
+  await evaluate(`document.querySelector('.child-editor form').requestSubmit()`);await until(`document.querySelectorAll('.child-card').length===1&&!document.querySelector('.child-editor')`);
+  await browser.navigate(origin+'/profile/children?lang=ru');await until(`document.querySelector('.child-card h2')?.textContent==='TEST child'`);
+  pass('real authenticated child create and refresh persistence use the existing session and CSRF');
+  await button('Редактировать');await until(`!!document.querySelector('#child-age')`);await setValue('#child-age','8');
+  await evaluate(`document.querySelector('.child-editor form').requestSubmit()`);await until(`!document.querySelector('.child-editor')&&document.querySelector('.child-card dd')?.textContent==='8'`);
+  await button('Посмотреть рекомендации');await until(`document.querySelectorAll('.child-recommendations .matching-possible').length===2`);
+  assert.equal(await evaluate(`location.pathname+location.search`),'/profile/children?lang=ru');
+  pass('real child editing and private Stage 14 recommendations keep incomplete source rules POSSIBLE');
+  await button('Удалить');await until(`!!document.querySelector('[role=alertdialog]')`);await button('Отмена');await until(`!document.querySelector('[role=alertdialog]')`);
+  assert.equal(await evaluate(`document.querySelectorAll('.child-card').length`),1);
+  await button('Удалить');await button('Подтвердить удаление');await until(`!document.querySelector('.child-card')&&!document.querySelector('[role=alertdialog]')`);
+  assert.equal((await db.query('SELECT count(*)::int AS n FROM balaqoldau.child_profiles WHERE user_id=(SELECT id FROM balaqoldau.user_accounts WHERE email=$1)',[email])).rows[0].n,0);
+  pass('real child deletion requires confirmation and removes only the selected synthetic profile');
   await browser.navigate(origin+'/profile/saved?lang=ru');await until(`!!document.querySelector('.dashboard .account-panel[role=status]')`);assert.equal(await evaluate(`document.querySelectorAll('.program-card').length`),0);pass('saved dashboard has an honest localized empty state');
   await browser.navigate(origin+resultsPath);await until(`document.querySelectorAll('.program-card').length===2&&!document.querySelector('.save-button').disabled`);
   await evaluate(`document.querySelectorAll('.save-button')[0].click()`);await until(`document.querySelectorAll('.save-button')[0].getAttribute('aria-pressed')==='true'`);

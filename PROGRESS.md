@@ -1381,3 +1381,72 @@ source review, city filter only existing region taxonomy, no unsupported income/
 rule inference, production-volume performance/manual screen-reader testing not claimed.
 Manual URLs and startup/restart commands are in docs/MATCHING.md. No commit/push/deploy,
 main changes, new child profiles, external government integrations or paid services.
+
+
+## Stage 15 - Child Profiles and Private Recommendations (2026-11-13)
+
+Implemented optional parent-owned child profiles at /profile/children (KZ/RU), with
+create/read/edit, multiple profiles, explicit confirmed deletion, and private selected-
+child recommendations. Reuses Stage 11 sessions/CSRF, Stage 12 dashboard/saved controls
+and Stage 14 matching. Anonymous search and admin authentication/RBAC remain unchanged.
+No child accounts, legal names, birth dates, exact addresses, identity/medical/disability
+fields, external services or additional language controls were introduced.
+
+Additive migration 010 creates child_profiles (one parent FK, optional nickname, age
+0-17, existing region FK, revision and bounded owner slot) and child_preferences (only
+existing program category interests). Owner/slot uniqueness and slot 1-20 enforce the
+20-profile quota even during concurrent inserts; max 10 preferences validated per
+request. Region/category FKs restrict taxonomy deletion; deleting a child cascades its
+preferences only. No earlier migration, user/admin account or program row was changed.
+Exact local balaqoldau_dev URL/host and actual DB identity were checked before applying
+one migration; repeat returned zero. Synthetic integration and browser fixture data
+were rolled back. Post-QA aggregates: 0 children/preferences, original 2 programs,
+0 published. balaqoldau_db was never accessed.
+
+Protected API follows existing cookie scope at /api/auth/children: GET/POST collection,
+GET options, GET/PATCH/DELETE /:uuid, GET /:uuid/recommendations with bounded pagination.
+Every data operation derives owner from a fresh active session in parameterized SQL.
+Foreign/unknown IDs return the same 404; expired/disabled sessions cannot read/write;
+mutations require existing Origin/JSON/CSRF checks. PATCH requires all editable values
+and current revision, so omitted optional fields cannot accidentally erase saved data.
+DELETE requires current revision and confirm=true. Terminal integer revisions remain
+deletable. Production privilege safety checks require narrow new column/table grants;
+no roles, credentials or grants were modified. See backend/CHILD_PROFILES.md.
+
+Recommendations reuse the existing SQL-before-pagination ranking and deterministic
+engine with stored age/region; preferred program categories form an OR candidate
+filter. Family status is never inferred from those interests; missing family evidence
+remains POSSIBLE. Only published non-DEMO programs appear. No recommendations are
+persisted and no child facts are placed in public URLs or localStorage. Session/owner
+and profile revision are rechecked after matching before a response is returned.
+Profiles/nicknames stay raw, source taxonomy names retain their original language with
+the existing fallback notice. Shared KZ/RU dictionary now has 362 entries, account 63.
+Age is intentionally a manually updated snapshot, not a birth-date-derived value.
+
+Verification: backend 139/139, frontend 56/56, dev rollback integration 37/37 (including
+8 child-specific tests), KZ/RU route/workflow browser 71/71, real React/Express/dev DB
+user/child/admin/saved regression browser 26/26, existing public browser 29/29 PASS.
+Frontend/backend production builds, lint and TypeScript checks PASS. Release-policy
+tests 15/15 and source/license/append-only migration/artifact checks PASS. Browser
+coverage includes loading/empty/errors, locale persistence, preserved drafts, explicit
+delete/cancel, five responsive widths, private recommendation URLs and session expiry.
+An initial child-page heading was corrected. A browser expiry assertion was updated
+to follow the existing required anonymous-session refresh before login. A direct
+backend test attempt from repository root failed relative-path startup checks; the
+standard backend npm test command passed. No tests were skipped or gates weakened.
+
+Audit: backend all/production 0 findings; frontend production 0, existing development-
+only moderate findings 10. No dependencies, lockfiles, environment files or assets
+changed. Existing pgpass and single-client QA-harness concurrency deprecation warnings
+remain for future pg@9 work. Production narrow grants, private-route/APM log redaction,
+inactivity/backup retention, restored-backup erasure and manual assistive-technology/
+load checks remain operator responsibilities; no production certification is claimed.
+
+Changed backend migration 010; users/children-schemas.ts, children-repository.ts,
+children-routes.ts, routes.ts, database-security.ts; matching/repository.ts; child
+unit/DB tests. Changed frontend account/ChildrenPage.tsx, children.ts/children.css,
+ProfilePage.tsx, api.ts/translations.ts; i18n/kk.ts/ru.ts; child unit tests and existing
+localization/user browser suites. Updated root/backend/frontend README, USER_AUTH.md,
+USER_PROFILE.md, CHILD_PROFILES.md, docs/SECURITY.md, DEPLOYMENT.md, MATCHING.md and
+LOCALIZATION.md. Local /profile/children?lang=kk and ?lang=ru return 200; anonymous
+/api/auth/children correctly returns 401. No commit/push/deploy/main changes.

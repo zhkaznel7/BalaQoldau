@@ -12,6 +12,7 @@ import type { ResetDelivery } from './mail.ts';
 import { paginationQuery } from '../api/schemas.ts';
 import { savedStatusQuery } from './dashboard-schemas.ts';
 import { handleDashboard } from './dashboard-routes.ts';
+import {handleChildren} from './children-routes.ts';
 
 const denied = () => new HttpError(401, 'UNAUTHENTICATED', 'Authentication required.');
 export function userRouter(config: Config, database?: Database, delivery: ResetDelivery | undefined = resetDelivery(config)) {
@@ -25,7 +26,7 @@ export function userRouter(config: Config, database?: Database, delivery: ResetD
     const origin = request.get('Origin');
     if ((origin !== undefined && origin !== config.USER_ORIGIN) || request.get('Sec-Fetch-Site') === 'cross-site'
       || (['POST','PATCH','DELETE'].includes(request.method) && origin !== config.USER_ORIGIN)) throw new HttpError(403, 'CSRF_FORBIDDEN', 'Request is not allowed.');
-    const query=request.method==='GET'&&request.path==='/saved-programs'?paginationQuery:request.method==='GET'&&request.path==='/saved-programs/status'?savedStatusQuery:emptyInput;
+    const query=request.method==='GET'&&(request.path==='/saved-programs'||/^\/children\/[^/]+\/recommendations$/.test(request.path))?paginationQuery:request.method==='GET'&&request.path==='/saved-programs/status'?savedStatusQuery:emptyInput;
     if (!query.safeParse(request.query).success) throw new HttpError(400, 'VALIDATION_ERROR', 'Invalid request input.');
     next();
   });
@@ -57,9 +58,10 @@ export function userRouter(config: Config, database?: Database, delivery: ResetD
         response.json({ data: { authenticated: !!profile, user: profile, csrfToken: csrf, resetAvailable: !!delivery } });
         return;
       }
-      if(request.path==='/profile'||request.path==='/saved-programs'||request.path.startsWith('/saved-programs/')) {
+      if(request.path==='/profile'||request.path==='/saved-programs'||request.path.startsWith('/saved-programs/')||request.path==='/children'||request.path.startsWith('/children/')) {
         if(!profile)throw denied();
-        await handleDashboard(request,response,database,token,()=>{
+        const handle=request.path==='/children'||request.path.startsWith('/children/')?handleChildren:handleDashboard;
+        await handle(request,response,database,token!,()=>{
           const csrf=request.get('X-CSRF-Token');
           if(!csrf||!/^[a-f0-9]{64}$/.test(csrf)||!session||!timingSafeEqual(Buffer.from(csrf),Buffer.from(session.csrf)))throw new HttpError(403,'CSRF_FORBIDDEN','Request is not allowed.');
           if(!request.is('application/json'))throw new HttpError(415,'UNSUPPORTED_MEDIA_TYPE','JSON required.');

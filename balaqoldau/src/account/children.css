@@ -1,0 +1,13 @@
+.children-dashboard { display:grid; gap:20px; }
+.child-privacy { max-width:78ch; }
+.child-card-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr)); gap:16px; }
+.child-card-grid .account-panel { margin:0; }
+.child-card h2,.child-card p { overflow-wrap:anywhere; }
+.child-actions { display:flex; flex-wrap:wrap; gap:10px; margin-block:12px; }
+.child-editor { max-width:720px; }
+.child-editor fieldset { min-width:0; border:0; padding:0; margin:0; }
+.child-editor select { width:100%; min-height:44px; border:1px solid #6b7e91; border-radius:4px; padding:10px; background:white; color:#142b47; }
+.child-preferences label { display:flex; align-items:center; gap:10px; margin-block:10px; overflow-wrap:anywhere; }
+.child-preferences input { width:20px; height:20px; flex-shrink:0; }
+.child-confirm { border-left:4px solid #a52a2a; }
+.child-recommendations { min-width:0; }

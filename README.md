@@ -7,6 +7,7 @@ Express/TypeScript API, PostgreSQL. Public API тек `published AND NOT is_demo
 - [Frontend іске қосу және browser QA](balaqoldau/README.md)
 - [KZ/RU локализациясы және тексерілген маршруттар — Stage 13](docs/LOCALIZATION.md)
 - [Түсіндірілетін іздеу және сәйкестік ережелері — Stage 14](docs/MATCHING.md)
+- [Бала профильдері және жеке ұсыныстар — Stage 15](backend/CHILD_PROFILES.md)
 - [Backend, PostgreSQL және API келісімшарты](backend/README.md)
 - [Deployment, rollback және least-privilege құқықтар](docs/DEPLOYMENT.md)
 - [Қауіпсіздік шолуы және contact retention](docs/SECURITY.md)

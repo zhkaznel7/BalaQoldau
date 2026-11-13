@@ -9,18 +9,21 @@ import type {DashboardProfile} from './api';
 import {useResource} from '../hooks/useResource';
 import {ProgramGrid} from '../components/ProgramCard';
 import './account.css';
+import ChildrenPage from './ChildrenPage';
+import {tr} from '../i18n/ui';
 
 export default function ProfilePage() {
   const {session,ready,error,refresh}=useUser(),location=useLocation(),[params]=useSearchParams();
   const language:Language=params.get('lang')==='ru'?'ru':'kk',t=authText[language];
   const href=(path:string)=>path+'?lang='+language;
-  useEffect(()=>{document.title=(location.pathname==='/profile/saved'?t.savedTitle:t.account)+' — BalaQoldau';},[location.pathname,t]);
+  const title=location.pathname==='/profile/children'?tr('m335'):location.pathname==='/profile/saved'?t.savedTitle:t.account;
+  useEffect(()=>{document.title=title+' — BalaQoldau';},[title]);
   if(ready&&!session?.authenticated&&(!error||error==='expired'))return <Navigate to={'/login?'+new URLSearchParams({lang:language,returnTo:location.pathname+location.search})} replace state={{expired:error==='expired'}}/>;
   return <section className="account-page dashboard container inner-page" lang={language}>
-    <div className="account-heading"><h1>{location.pathname==='/profile/saved'?t.savedTitle:t.account}</h1></div>
-    <nav className="account-links" aria-label={t.account}><NavLink end to={href('/profile')}>{t.account}</NavLink><NavLink to={href('/profile/saved')}>{t.savedTitle}</NavLink><Link to="/find">{t.find}</Link></nav>
+    <div className="account-heading"><h1>{title}</h1></div>
+    <nav className="account-links" aria-label={t.account}><NavLink end to={href('/profile')}>{t.account}</NavLink><NavLink to={href('/profile/saved')}>{t.savedTitle}</NavLink><NavLink to={href('/profile/children')}>{tr('m335')}</NavLink><Link to="/find">{t.find}</Link></nav>
     {!ready?<p role="status">{t.loading}</p>:error?<div role="alert" className="account-feedback error"><p>{t[error]}</p><button className="button" onClick={()=>void refresh()}>{t.retry}</button></div>:
-      session?.user&&(location.pathname==='/profile/saved'?<SavedPage key={session.user.id} language={language}/>:<Overview key={session.user.id} language={language}/>)}
+      session?.user&&(location.pathname==='/profile/children'?<ChildrenPage key={session.user.id}/>:location.pathname==='/profile/saved'?<SavedPage key={session.user.id} language={language}/>:<Overview key={session.user.id} language={language}/>)}
   </section>;
 }
 function Overview({language}:{language:Language}) {
