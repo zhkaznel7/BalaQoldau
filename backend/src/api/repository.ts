@@ -68,13 +68,13 @@ export function createRepository(db: Database) {
           OR EXISTS(SELECT 1 FROM balaqoldau.program_family_categories pf JOIN balaqoldau.published_programs p
           ON p.id=pf.program_id WHERE pf.family_category_id=f.id))`,[],pagination);
     },
-    async contact(input: ContactInput) {
+    async contact(input: ContactInput,userId:string|null=null) {
       const digest=input.submissionId?createHash('sha256').update(JSON.stringify([input.senderName,input.email,input.message])).digest('hex'):null;
-      const result = await db.query<{ id: string }>(`INSERT INTO balaqoldau.contact_messages(sender_name,email,message,submission_id,submission_digest)
-        VALUES ($1,$2,$3,$4,$5) ON CONFLICT(submission_id) DO NOTHING RETURNING id`, [input.senderName, input.email, input.message,input.submissionId??null,digest]);
+      const result = await db.query<{ id: string }>(`INSERT INTO balaqoldau.contact_messages(sender_name,email,message,submission_id,submission_digest,user_id)
+        VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT(submission_id) DO NOTHING RETURNING id`, [input.senderName, input.email, input.message,input.submissionId??null,digest,userId]);
       const row = result.rows[0];
       if(!row&&input.submissionId){
-        const existing=(await db.query<{id:string}>('SELECT id FROM balaqoldau.contact_messages WHERE submission_id=$1 AND submission_digest=$2',[input.submissionId,digest])).rows[0];
+        const existing=(await db.query<{id:string}>('SELECT id FROM balaqoldau.contact_messages WHERE submission_id=$1 AND submission_digest=$2 AND user_id IS NOT DISTINCT FROM $3',[input.submissionId,digest,userId])).rows[0];
         if(existing)return existing;throw new HttpError(409,'CONTACT_CONFLICT','Submission identifier cannot be reused.');
       }
       if (!row) throw new Error('Missing database result');

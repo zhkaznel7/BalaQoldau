@@ -11,9 +11,9 @@ import type { ReadinessCheck } from './db/readiness.ts';
 import { readinessRouter } from './routes/ready.ts';
 import { adminRouter } from './admin/routes.ts';
 import { userRouter } from './users/routes.ts';
-import type { ResetDelivery } from './users/mail.ts';
+import type { ReplyDelivery, ResetDelivery } from './users/mail.ts';
 
-export function createApp(config: Config, database?: Database, checkReady: ReadinessCheck = async () => false, deliverReset?: ResetDelivery) {
+export function createApp(config: Config, database?: Database, checkReady: ReadinessCheck = async () => false, deliverReset?: ResetDelivery, deliverReply?:ReplyDelivery) {
   const app = express();
   app.disable('x-powered-by');
   app.set('env', config.NODE_ENV);
@@ -25,7 +25,7 @@ export function createApp(config: Config, database?: Database, checkReady: Readi
     next();
   });
   // Admin is same-origin only, with its own CSRF, JSON and rate limits. Public CORS stays credential-free.
-  app.use('/api/admin', adminRouter(config, database));
+  app.use('/api/admin', adminRouter(config, database, deliverReply));
   app.use('/api/auth', userRouter(config, database, deliverReset));
   app.use(cors({
     origin(value, callback) {

@@ -1,6 +1,8 @@
 import {z} from 'zod';
+import {childFamilyContext} from './family-context.ts';
 const slug=z.string().max(80).regex(/^[a-z0-9]+(-[a-z0-9]+)*$/);
 const fields={
+  familyContext:childFamilyContext,
   nickname:z.string().max(100).refine(v=>[...v].every(c=>{const n=c.charCodeAt(0);return n>=32&&(n<127||n>159);}))
     .transform(v=>v.normalize('NFC').trim().replace(/\s+/gu,' '))
     .refine(v=>[...v].length<=30&&(!v||/^[\p{L}\p{M}\p{N} ._-]+$/u.test(v))&&!/\d{8}/u.test(v))

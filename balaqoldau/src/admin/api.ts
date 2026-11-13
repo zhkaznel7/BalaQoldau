@@ -1,7 +1,15 @@
+import {parseReply} from './replies.ts';
+import type {InboxKind} from './replies.ts';
 import {tr} from '../i18n/ui.ts';
 import { isProgramId } from '../api/client.ts';
 import type { Access, Session, Program, ProgramInput, Taxonomy, Action, Status } from './types.ts';
 import type {AdminDashboard,VerificationEntry,Report,ReportStatus} from './types.ts';
+import type {ContactMessage,ContactStatus} from './types.ts';
+function contactData(value:unknown):ContactMessage {
+ const p=record(value);
+ if(typeof p.id!=='string'||!isProgramId(p.id)||typeof p.senderName!=='string'||p.senderName.length>100||typeof p.email!=='string'||p.email.length>254||!['unread','read','resolved'].includes(String(p.status))||!Number.isSafeInteger(p.version)||Number(p.version)<1||!['createdAt','updatedAt'].every(k=>typeof p[k]==='string'&&Number.isFinite(Date.parse(String(p[k]))))||!((typeof p.preview==='string'&&p.preview.length<=320)||(typeof p.message==='string'&&p.message.length<=4000)))throw bad();
+ return p as unknown as ContactMessage;
+}
 
 const messages: Record<number, string> = { 0: tr("m032"), 400: tr("m033"),
   401: tr("m034"), 403: tr("m035"),
@@ -117,12 +125,21 @@ export function createAdminApi(base = '/api/admin', fetcher: typeof fetch = fetc
         const e=record(value);if(!isProgramId(String(e.id))||!isProgramId(String(e.actorId))||!['approve','reject','recheck'].includes(String(e.decision))||typeof e.notes!=='string'||e.notes.length>1000||!Number.isInteger(e.programVersion)||!['sourceReviewed','informationReviewed','eligibilityReviewed'].every(k=>typeof e[k]==='boolean')||!Number.isFinite(Date.parse(String(e.createdAt))))throw bad();return e as unknown as VerificationEntry;
       });
     },
+    async replies(kind:InboxKind,id:string,signal?:AbortSignal){const rows=await request('/'+kind+'/'+validId(id)+'/replies','GET',undefined,signal);if(!Array.isArray(rows)||rows.length>50)throw bad();return rows.map(parseReply);},
+    reply:(kind:InboxKind,id:string,text:string,submissionId:string)=>mutation(async()=>parseReply(await request('/'+kind+'/'+validId(id)+'/replies','POST',{text,submissionId}))),
     async reports(query:string,signal?:AbortSignal){
       const params=new URLSearchParams(query);params.delete('lang');
       return pageData(await request('/reports?'+params,'GET',undefined,signal,false,true),value=>{const r=record(value);if(!isProgramId(String(r.id))||!isProgramId(String(r.programId))||typeof r.programTitle!=='string'||!['incorrect','outdated','source_broken','other'].includes(String(r.reason))||!(r.explanation===null||typeof r.explanation==='string')||!['open','reviewed','resolved','dismissed'].includes(String(r.status))||!Number.isInteger(r.version)||Number(r.version)<1||!Number.isFinite(Date.parse(String(r.createdAt))))throw bad();return r as unknown as Report;});
     },
     moderateReport:(id:string,version:number,status:ReportStatus)=>mutation(async()=>{const result=record(await request('/reports/'+validId(id),'POST',{version,status}));if(result.id!==id||result.status!==status||result.version!==version+1)throw bad();}),
     session,
+    async contacts(query:string,signal?:AbortSignal){
+      const parsed=new URLSearchParams(query);parsed.delete('lang');
+      const payload=await request('/contact-messages?'+parsed,'GET',undefined,signal,false,true),page=pageData(payload,contactData),count=record(payload).unreadCount;
+      if(!Number.isSafeInteger(count)||Number(count)<0)throw bad();return {...page,unreadCount:Number(count)};
+    },
+    async contact(id:string,signal?:AbortSignal){const result=contactData(await request('/contact-messages/'+validId(id),'GET',undefined,signal));if(result.id!==id||typeof result.message!=='string')throw bad();return result;},
+    changeContact:(id:string,version:number,status:ContactStatus)=>mutation(async()=>{const result=contactData(await request('/contact-messages/'+validId(id),'POST',{version,status}));if(result.id!==id||result.version!==version+1||result.status!==status||typeof result.message!=='string')throw bad();return result;}),
     busy: () => changing,
     login: (email: string, password: string) => mutation(async () => { await session();epoch++;accessFlight=undefined; const result = sessionData(await request('/login', 'POST', { email, password }, undefined, true)); csrf = result.csrfToken; epoch++; return result; }),
     logout: () => mutation(async () => { await request('/logout', 'POST', {}); csrf = ''; epoch++; }),

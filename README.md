@@ -32,3 +32,5 @@ Production міндетті DB/config тексеруінен өтпей HTTP п�
 Public catalog UX fixes: apply additive migration 012_catalog_categories.sql before rollout. The stable category slugs are benefits, free-courses, grants and clubs; these navigation labels exist without published programs. No program data is seeded. Public GET /api/categories additionally includes these four taxonomy entries while preserving published-only visibility for other taxonomy. Existing names are never overwritten.
 
 Admin reference data update: [20 Kazakhstan regions, nationwide selection, localized support-needs taxonomy and migration safety](backend/REFERENCE_DATA.md). Apply additive migration 013 before rollout; it creates reference rows only, never programs or eligibility rules.
+
+Stage 16.1: [public contact persistence/idempotency and private Admin inbox](backend/CONTACT_API.md). Existing migration 014 is preserved; additive 015 introduces message statuses and auditing.

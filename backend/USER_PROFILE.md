@@ -96,3 +96,5 @@ test:user-browser and BROWSER_BUILD=true test:browser. User DB/browser test fixt
 BEGIN/ROLLBACK; no existing user/program data is overwritten. GitHub CI already runs the
 dedicated user DB command, now including both auth and dashboard suites serially. Only
 GitHub Actions uses its existing isolated CI database; it was not run/pushed from this task.
+
+Optional private familyContext: childrenCount (null or integer 0-30), singleParent/largeFamily/disabilitySupportEligible (null/boolean), supportNeeds (up to three unique existing neutral product tags). Null clears; omission preserves prior data for old clients. No IIN, diagnosis, dates or medical documents. Self-declarations do not establish official eligibility or infer legal large-family thresholds. Family flags are not used to manufacture MATCH.

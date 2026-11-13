@@ -15,7 +15,7 @@ accepts `pending` as an alias. Existing four-state records are not rewritten.
 | Action | From → to | Authorized staff and requirements |
 |---|---|---|
 | submit | draft → review | Editor owns draft, or Admin; non-DEMO with source URL/name |
-| approve | review → verified | Reviewer/Admin, never author or submitter; all review checks |
+| approve | review → verified | Reviewer must not be author/submitter; Admin may review own submission; all review checks |
 | reject | review → rejected | Reviewer on another author's submission, or Admin; reason required |
 | reject approval | verified → rejected | Admin only; reason required |
 | publish | verified → published | Admin only; confirm, fresh recorded approval, no expiry/recheck flag |
@@ -198,3 +198,5 @@ Prepare a genuine sourced draft, submit, review using a different staff account,
 confirm publication as Admin. Check history and expiry; archive only after confirmation.
 Reporting is available under a currently public program's details. No local public
 program currently exists, so use rollback QA fixtures rather than inventing a real entry.
+
+Admin-role policy update: the existing Admin may create, submit, verify and publish without a separate Reviewer account. All three source attestations, non-DEMO/expiry/recheck protections, version-bound immutable approval history, transactional audit and explicit publish confirmation remain mandatory. Reviewer cannot approve their own creation/submission. This deliberate role exception is recorded with the actual Admin actor, never impersonated as independent review.

@@ -66,12 +66,29 @@ export const adminPrivilegeQuery = `SELECT
         WHERE NOT has_column_privilege('balaqoldau.program_verifications',c.name,'INSERT'))
       AND NOT EXISTS(SELECT 1 FROM pg_attribute a WHERE a.attrelid='balaqoldau.program_verifications'::regclass AND a.attnum>0 AND NOT a.attisdropped
         AND a.attname NOT IN('program_id','actor_id','program_version','decision','source_reviewed','information_reviewed','eligibility_reviewed','notes','source_url','source_name') AND has_column_privilege(a.attrelid,a.attnum,'INSERT'))
+      AND NOT has_table_privilege('balaqoldau.contact_messages','DELETE,TRUNCATE,TRIGGER')
+      AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['id','sender_name','email','message','submission_id','submission_digest','user_id','status','version','created_at','updated_at']) c(name)
+        WHERE NOT has_column_privilege('balaqoldau.contact_messages',c.name,'SELECT'))
+      AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['sender_name','email','message','submission_id','submission_digest','user_id']) c(name)
+        WHERE NOT has_column_privilege('balaqoldau.contact_messages',c.name,'INSERT'))
+      AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['status','version','updated_at']) c(name)
+        WHERE NOT has_column_privilege('balaqoldau.contact_messages',c.name,'UPDATE'))
+      AND NOT EXISTS(SELECT 1 FROM pg_attribute a WHERE a.attrelid='balaqoldau.contact_messages'::regclass AND a.attnum>0 AND NOT a.attisdropped
+        AND ((a.attname NOT IN('sender_name','email','message','submission_id','submission_digest','user_id') AND has_column_privilege(a.attrelid,a.attnum,'INSERT'))
+          OR(a.attname NOT IN('status','version','updated_at') AND has_column_privilege(a.attrelid,a.attnum,'UPDATE'))))
+      AND has_table_privilege('balaqoldau.inbox_replies','SELECT')
+      AND NOT has_table_privilege('balaqoldau.inbox_replies','DELETE,TRUNCATE,TRIGGER')
+      AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['contact_id','report_id','admin_id','submission_id','body','delivery_status','delivered_at']) c(name) WHERE NOT has_column_privilege('balaqoldau.inbox_replies',c.name,'INSERT'))
+      AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['delivery_status','delivered_at']) c(name) WHERE NOT has_column_privilege('balaqoldau.inbox_replies',c.name,'UPDATE'))
+      AND NOT EXISTS(SELECT 1 FROM pg_attribute a WHERE a.attrelid='balaqoldau.inbox_replies'::regclass AND a.attnum>0 AND NOT a.attisdropped
+       AND ((a.attname NOT IN('contact_id','report_id','admin_id','submission_id','body','delivery_status','delivered_at') AND has_column_privilege(a.attrelid,a.attnum,'INSERT'))
+        OR(a.attname NOT IN('delivery_status','delivered_at') AND has_column_privilege(a.attrelid,a.attnum,'UPDATE'))))
       AND has_table_privilege('balaqoldau.program_reports','SELECT')
       AND NOT has_table_privilege('balaqoldau.program_reports','DELETE,TRUNCATE,TRIGGER')
-      AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['program_id','reason','explanation']) c(name) WHERE NOT has_column_privilege('balaqoldau.program_reports',c.name,'INSERT'))
+      AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['program_id','reason','explanation','user_id']) c(name) WHERE NOT has_column_privilege('balaqoldau.program_reports',c.name,'INSERT'))
       AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['status','version','moderated_by','updated_at']) c(name) WHERE NOT has_column_privilege('balaqoldau.program_reports',c.name,'UPDATE'))
       AND NOT EXISTS(SELECT 1 FROM pg_attribute a WHERE a.attrelid='balaqoldau.program_reports'::regclass AND a.attnum>0 AND NOT a.attisdropped
-        AND ((a.attname NOT IN('program_id','reason','explanation') AND has_column_privilege(a.attrelid,a.attnum,'INSERT'))
+        AND ((a.attname NOT IN('program_id','reason','explanation','user_id') AND has_column_privilege(a.attrelid,a.attnum,'INSERT'))
           OR(a.attname NOT IN('status','version','moderated_by','updated_at') AND has_column_privilege(a.attrelid,a.attnum,'UPDATE'))))
       AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['event','actor_id','target_id','permission','previous_role','new_role','previous_status','new_status']) AS c(name)
         WHERE NOT has_column_privilege('balaqoldau.admin_audit_log',c.name,'INSERT')) AS safe

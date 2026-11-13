@@ -1,12 +1,15 @@
+import type {ContactInput,ReportInput} from '../api/client.ts';
 import type { AuthMessage, Language } from './translations.ts';
 import { isProgramId,parseProgram } from '../api/client.ts';
 import type { Page,Program } from '../api/client.ts';
 import {parseChild,parseChildOptions} from './children.ts';
 import type {ChildInput} from './children.ts';
+import {validFamilyContext} from './family.ts';
+import type {FamilyContext} from './family.ts';
 export interface UserProfile { id: string; email: string; language: Language }
 export interface UserSession { authenticated: boolean; user: UserProfile | null; csrfToken: string; resetAvailable: boolean }
-export interface DashboardProfile extends UserProfile {fullName:string|null;location:string|null;savedCount:number}
-export interface ProfileInput {fullName:string|null;location:string|null}
+export interface DashboardProfile extends UserProfile {fullName:string|null;location:string|null;savedCount:number;familyContext?:FamilyContext|null}
+export interface ProfileInput {fullName:string|null;location:string|null;familyContext?:FamilyContext|null}
 export class UserAuthError extends Error {
   readonly status: number;
   readonly key: AuthMessage;
@@ -23,18 +26,20 @@ function profile(value: unknown): UserProfile {
 }
 function dashboard(value:unknown):DashboardProfile {
   const p=object(value);profile(p);
+  if(p.familyContext!==undefined&&!validFamilyContext(p.familyContext))throw new UserAuthError(503,'unavailable');
   if(!['fullName','location'].every(key=>p[key]===null||(typeof p[key]==='string'&&[...String(p[key])].length<=100))||!Number.isSafeInteger(p.savedCount)||Number(p.savedCount)<0)throw new UserAuthError(503,'unavailable');
   return p as unknown as DashboardProfile;
 }
-export function normalizeProfile(input:{fullName:string;location:string}):ProfileInput|null {
+export function normalizeProfile(input:{fullName:string;location:string;familyContext?:FamilyContext|null}):ProfileInput|null {
+  if(input.familyContext!==undefined&&!validFamilyContext(input.familyContext))return null;
   const values=[input.fullName,input.location];
   if(values.some(value=>[...value].some(character=>{const code=character.charCodeAt(0);return code<32||(code>=127&&code<=159);})))return null;
   const [fullName,location]=values.map(value=>value.normalize('NFC').trim().replace(/\s+/gu,' '));
   if([...fullName].length>100||[...location].length>100)return null;
-  return {fullName:fullName||null,location:location||null};
+  return {fullName:fullName||null,location:location||null,...(input.familyContext===undefined?{}:{familyContext:input.familyContext})};
 }
 export function safeReturnTo(value:string|null):string {
-  if(!value||value.includes('\\')||[...value].some(character=>character.charCodeAt(0)<=32)||!/^\/(?:results|find|favorites|profile(?:\/(?:saved|children))?|program\/[a-f0-9-]{36})(?:[?#]|$)/i.test(value))return '/profile';
+  if(!value||value.includes('\\')||[...value].some(character=>character.charCodeAt(0)<=32)||!/^\/(?:results|find|favorites|profile(?:\/(?:saved|children|messages))?|program\/[a-f0-9-]{36})(?:[?#]|$)/i.test(value))return '/profile';
   try{const url=new URL(value,'https://local.invalid');return url.origin==='https://local.invalid'?url.pathname+url.search+url.hash:'/profile';}catch{return '/profile';}
 }
 export function passwordError(value:string):'passwordShort'|'passwordLong'|null {
@@ -63,7 +68,7 @@ export function createUserApi(fetcher:typeof fetch=fetch, expired:()=>void=()=>{
       throw new UserAuthError(response.status,key);
     }
     if(response.status===204)return null;
-    try{const payload=object(await response.json());return path.startsWith('/saved-programs?')||/^\/children\/[^/]+\/recommendations\?/.test(path)?payload:payload.data;}catch{throw new UserAuthError(503,'unavailable');}
+    try{const payload=object(await response.json());return path.startsWith('/messages?')||path.startsWith('/saved-programs?')||/^\/children\/[^/]+\/recommendations\?/.test(path)?payload:payload.data;}catch{throw new UserAuthError(503,'unavailable');}
   }
   function sessionData(value:unknown):UserSession {
     const data=object(value);
@@ -74,6 +79,13 @@ export function createUserApi(fetcher:typeof fetch=fetch, expired:()=>void=()=>{
   function accepted(value:unknown) {if(object(value).accepted!==true)throw new UserAuthError(503,'unavailable');}
   async function mutate<T>(work:()=>Promise<T>) {if(busy)throw new UserAuthError(409,'conflict');busy=true;epoch++;try{return await work();}finally{busy=false;epoch++;}}
   return {
+    contact:(input:ContactInput,signal?:AbortSignal)=>mutate(async()=>{const p=object(await request('/contact-messages','POST',input,signal));if(!isProgramId(String(p.id)))throw new UserAuthError(503,'unavailable');}),
+    report:(id:string,input:ReportInput,signal?:AbortSignal)=>mutate(async()=>{if(!isProgramId(id))throw new UserAuthError(400,'invalid');accepted(await request('/programs/'+id+'/reports','POST',input,signal));}),
+    async messages(page=1,signal?:AbortSignal){
+      const payload=object(await request('/messages?page='+page+'&limit=20','GET',undefined,signal)),p=object(payload.pagination);
+      if(!Array.isArray(payload.data)||payload.data.length>20||!['page','limit','total','totalPages'].every(k=>Number.isSafeInteger(p[k])&&Number(p[k])>=0)||p.page!==page||p.limit!==20||p.totalPages!==Math.ceil(Number(p.total)/20))throw new UserAuthError(503,'unavailable');
+      return {data:payload.data.map(value=>{const r=object(value);if(!isProgramId(String(r.id))||typeof r.text!=='string'||r.text.length>4000||!['contact','report'].includes(String(r.kind))||!Number.isFinite(Date.parse(String(r.createdAt))))throw new UserAuthError(503,'unavailable');return r as unknown as {id:string;text:string;kind:'contact'|'report';createdAt:string};}),pagination:p as unknown as Page<Program>['pagination']};
+    },
     async children(signal?:AbortSignal){const value=await request('/children','GET',undefined,signal);try{if(!Array.isArray(value)||value.length>20)throw new Error();return value.map(parseChild);}catch{throw new UserAuthError(503,'unavailable');}},
     async childOptions(signal?:AbortSignal){try{return parseChildOptions(await request('/children/options','GET',undefined,signal));}catch(error){if(error instanceof UserAuthError)throw error;throw new UserAuthError(503,'unavailable');}},
     createChild:(input:ChildInput)=>mutate(async()=>{try{return parseChild(await request('/children','POST',input));}catch(error){if(error instanceof UserAuthError)throw error;throw new UserAuthError(503,'unavailable');}}),

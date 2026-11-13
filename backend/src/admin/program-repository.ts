@@ -121,7 +121,7 @@ export async function transitionAdminProgram(db:Database,actor:{id:string;role:R
     if(p.status!=='draft'||p.isDemo||!p.sourceUrl||!p.sourceName)throw conflict();
     state='review';event='program.submitted';
   }else if(action==='approve'){
-    if(own)throw forbidden();if(p.status!=='review'||p.isDemo||expired||!p.sourceUrl||!p.sourceName||!p.title.trim()||!p.description.trim()||!p.regions.length)throw conflict();
+    if(own&&actor.role!=='admin')throw forbidden();if(p.status!=='review'||p.isDemo||expired||!p.sourceUrl||!p.sourceName||!p.title.trim()||!p.description.trim()||!p.regions.length)throw conflict();
     await taxonomy(db,p); // Legacy DEMO references cannot be certified as real eligibility.
     if(!decision.sourceReviewed||!decision.informationReviewed||!decision.eligibilityReviewed)throw bad();
     state='verified';event='program.approved';

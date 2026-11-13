@@ -5,13 +5,13 @@ import type { ProfileInput } from './dashboard-schemas.ts';
 import type { Pagination } from '../api/schemas.ts';
 
 // Every statement derives ownership from a fresh active session, never a client-supplied user ID.
-const active = `SELECT u.id,u.email,u.language,u.full_name,u.location FROM balaqoldau.user_sessions s
+const active = `SELECT u.id,u.email,u.language,u.full_name,u.location,u.family_context FROM balaqoldau.user_sessions s
   JOIN balaqoldau.user_accounts u ON u.id=s.user_id WHERE s.token_hash=$1
   AND s.expires_at>clock_timestamp() AND NOT u.disabled AND s.credential_version=u.credential_version`;
 const count = `(SELECT count(*)::int FROM balaqoldau.user_saved_programs saved
   JOIN balaqoldau.published_programs p ON p.id=saved.program_id WHERE saved.user_id=u.id)`;
-const fields = `u.id,u.email,u.language,u.full_name AS "fullName",u.location,${count} AS "savedCount"`;
-export interface DashboardProfile {id:string;email:string;language:'kk'|'ru';fullName:string|null;location:string|null;savedCount:number}
+const fields = `u.id,u.email,u.language,u.full_name AS "fullName",u.location,u.family_context AS "familyContext",${count} AS "savedCount"`;
+export interface DashboardProfile {id:string;email:string;language:'kk'|'ru';fullName:string|null;location:string|null;savedCount:number;familyContext:ProfileInput['familyContext']}
 export function dashboardRepository(db:Database) {
   return {
     async profile(token:string) {
@@ -19,8 +19,8 @@ export function dashboardRepository(db:Database) {
     },
     async update(token:string,input:ProfileInput) {
       return (await db.query<DashboardProfile>(`WITH active AS MATERIALIZED (${active} FOR UPDATE OF u),
-        changed AS (UPDATE balaqoldau.user_accounts u SET full_name=$2,location=$3 FROM active a WHERE u.id=a.id RETURNING u.*)
-        SELECT ${fields} FROM changed u`,[userTokenHash(token),input.fullName,input.location])).rows[0];
+        changed AS (UPDATE balaqoldau.user_accounts u SET full_name=$2,location=$3,family_context=CASE WHEN $5 THEN $4::jsonb ELSE u.family_context END FROM active a WHERE u.id=a.id RETURNING u.*)
+        SELECT ${fields} FROM changed u`,[userTokenHash(token),input.fullName,input.location,input.familyContext==null?null:JSON.stringify(input.familyContext),input.familyContext!==undefined])).rows[0];
     },
     async saved(token:string,pagination:Pagination) {
       return (await db.query<{authorized:boolean;data:unknown[];total:number}>(`WITH active AS MATERIALIZED (${active}),

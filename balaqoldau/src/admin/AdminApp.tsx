@@ -13,6 +13,7 @@ import './admin.css';
 import LanguageSwitcher from '../components/LanguageSwitcher';
 import {AdminOverview,AdminReports} from './VerificationPanels';
 import ContentLanguageNotice from '../i18n/ContentLanguageNotice';
+import ContactInbox from './ContactInbox';
 
 export default function AdminApp() {
   useUi();
@@ -79,7 +80,7 @@ export default function AdminApp() {
       {state.access && <><span className="admin-role"><ShieldCheck size={17} aria-hidden="true"/>{tr(roles[state.access.role])}</span><button type="button" disabled={loggingOut || api.busy()} onClick={() => void logout()}><LogOut size={17} aria-hidden="true"/> {loggingOut ? tr("m009") : tr("m010")}</button></>}
     </header>
     <div className={state.access ? 'admin-layout' : 'admin-login-layout'}>
-      {state.access && <nav className="admin-nav" aria-label={tr("m011")}><NavLink to="/admin/overview">{tr("m368")}</NavLink>{state.access.permissions.includes('programs:review')&&<NavLink to="/admin/reports">{tr("m392")}</NavLink>}<NavLink end to="/admin/programs">{""+tr("m012")+""}</NavLink>
+      {state.access && <nav className="admin-nav" aria-label={tr("m011")}>{state.access.permissions.includes('contacts:manage')&&<NavLink to="/admin/messages">{tr('m460')}</NavLink>}<NavLink to="/admin/overview">{tr("m368")}</NavLink>{state.access.permissions.includes('programs:review')&&<NavLink to="/admin/reports">{tr("m392")}</NavLink>}<NavLink end to="/admin/programs">{""+tr("m012")+""}</NavLink>
         {state.access.permissions.includes('programs:review') && <Link to="/admin/programs?status=review">{""+tr("m013")+""}</Link>}
         {state.access.role === 'admin' && <Link to="/admin/programs?status=verified">{""+tr("m014")+""}</Link>}
         {state.access.permissions.includes('programs:draft:write') && <NavLink to="/admin/programs/new">{""+tr("m015")+""}</NavLink>}
@@ -90,7 +91,7 @@ export default function AdminApp() {
         {logoutError && <div role="alert" className="admin-error"><p>{tr(logoutError)}</p><button onClick={() => void refresh()}>{""+tr("m016")+""}</button></div>}
         {state.loading ? <p role="status">{""+tr("m017")+""}</p> : state.error&&!state.access ? <section><h1>{tr(state.error instanceof AdminError&&state.error.status===403?'m458':'m018')}</h1><SessionProblem error={state.error} retry={()=>void refresh()}/></section>
           : state.access ? <AdminContext.Provider key={state.access.id} value={{ api, access: state.access, refresh }}><Routes>
-            <Route path="overview" element={<AdminOverview/>}/><Route path="reports" element={<AdminReports/>}/><Route path="login" element={<Navigate replace to="/admin/programs"/>}/><Route path="programs" element={<ProgramList/>}/>
+            <Route path="messages" element={<ContactInbox/>}/><Route path="messages/:id" element={<ContactInbox/>}/><Route path="overview" element={<AdminOverview/>}/><Route path="reports" element={<AdminReports/>}/><Route path="login" element={<Navigate replace to="/admin/programs"/>}/><Route path="programs" element={<ProgramList/>}/>
             <Route path="programs/new" element={<ProgramFormPage/>}/><Route path="programs/:id/edit" element={<ProgramFormPage/>}/>
             <Route path="programs/:id" element={<ProgramDetails/>}/><Route index element={<Navigate replace to="/admin/programs"/>}/>
             <Route path="*" element={<><h1>{""+tr("m020")+""}</h1><Link to="/admin/programs">{""+tr("m021")+""}</Link></>}/>

@@ -162,7 +162,10 @@ test('admin program CRUD/workflow against isolated PostgreSQL; all fixture chang
       assert.equal(real.status, 201); let own = (await real.json()).data;
       const submitted = await call('/' + own.id + '/submit', users.admin, 'POST', { version: own.version });
       assert.equal(submitted.status, 200); own = (await submitted.json()).data;
-      assert.equal((await call('/' + own.id + '/approve', users.admin, 'POST', { version: own.version,sourceReviewed:true,informationReviewed:true,eligibilityReviewed:true })).status, 403);
+      assert.equal((await call('/' + own.id + '/approve', users.admin, 'POST', { version: own.version })).status,400);
+      const approved=await call('/'+own.id+'/approve',users.admin,'POST',{version:own.version,sourceReviewed:true,informationReviewed:true,eligibilityReviewed:true});assert.equal(approved.status,200);own=(await approved.json()).data;
+      const published=await call('/'+own.id+'/publish',users.admin,'POST',{version:own.version,confirm:true});assert.equal(published.status,200);
+      assert.equal((await fetch(base+'/programs/'+own.id)).status,200);
     });
     await t.test('audit failure rolls back content, revision and relation changes', async () => {
       const before = await db.query('SELECT title,version FROM balaqoldau.programs WHERE id=$1', [program.id]);

@@ -15,7 +15,9 @@ export type ProgramInput = Pick<Program, 'slug' | 'category' | 'title' | 'descri
 export interface Taxonomy { categories: { slug: string; name: string }[]; regions: { slug: string; name: string }[]; familyCategories: { slug: string; name: string }[] }
 export interface VerificationEntry {id:string;actorId:string;programVersion:number;decision:'approve'|'reject'|'recheck';notes:string;createdAt:string;sourceReviewed:boolean;informationReviewed:boolean;eligibilityReviewed:boolean}
 export type ReportStatus='open'|'reviewed'|'resolved'|'dismissed';
-export interface Report {id:string;programId:string;programTitle:string;reason:'incorrect'|'outdated'|'source_broken'|'other';explanation:string|null;status:ReportStatus;version:number;createdAt:string}
+export type ContactStatus='unread'|'read'|'resolved';
+export interface ContactMessage {replied?:boolean;id:string;senderName:string;email:string;status:ContactStatus;version:number;createdAt:string;updatedAt:string;preview?:string;message?:string}
+export interface Report {replied?:boolean;id:string;programId:string;programTitle:string;reason:'incorrect'|'outdated'|'source_broken'|'other';explanation:string|null;status:ReportStatus;version:number;createdAt:string}
 export interface AdminDashboard {counts:Record<Status|'total'|'needsReverification'|'expired',number>;recent:{id:string;title:string;status:Status;version:number;updatedAt:string}[];reviewPeriodDays:number}
 export const statuses: Record<Status, string> = { draft: tr("m133"), review: tr("m134"), verified: tr("m135"), published: tr("m136"),rejected:tr("m363"),archived:tr("m364") };
 export const roles: Record<Role, string> = { editor: tr("m137"), reviewer: tr("m138"), admin: tr("m139") };
@@ -28,7 +30,7 @@ export function permittedActions(access: Access, program: Program): Action[] {
   if (canEdit(access, program) && !program.isDemo && program.sourceUrl && program.sourceName) result.push('submit');
   if (access.permissions.includes('programs:review')) {
     const own = program.createdBy === access.id || program.submittedBy === access.id;
-    if (program.status === 'review' && !own) result.push('approve');
+    if (program.status === 'review' && (!own||access.role==='admin')) result.push('approve');
     if ((program.status === 'review' && (!own || access.role === 'admin')) || (program.status === 'verified' && access.role === 'admin')) result.push('reject');
   }
   if(access.permissions.includes('programs:draft:write')&&program.status==='rejected'&&(access.role==='admin'||program.createdBy===access.id))result.push('reopen');

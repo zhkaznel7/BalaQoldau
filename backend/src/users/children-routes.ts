@@ -1,3 +1,4 @@
+import {selectedSupportNeed} from './family-context.ts';
 import type {Request,Response} from 'express';
 import type {Database} from '../api/repository.ts';
 import {HttpError} from '../middleware/errors.ts';
@@ -26,7 +27,8 @@ export async function handleChildren(req:Request,res:Response,db:Database,token:
     if(!match?.[2]){res.json({data:before.data});return;}
     const page=validate(paginationQuery,req.query),child=before.data;
     // Preferences are program categories, never inferred medical/disability/family status.
-    const result=await findMatches(db,{...page,age:child.age,region:child.region},undefined,child.preferences);
+    const need=selectedSupportNeed(child.familyContext);
+    const result=await findMatches(db,{...page,age:child.age,region:child.region,...(need?{need}:{})},undefined,child.preferences);
     const after=await repo.one(token,id);if(!after?.authorized)throw denied();if(!after.data)throw missing();
     if(after.data.version!==child.version)throw stale();res.json(result);return;
   }

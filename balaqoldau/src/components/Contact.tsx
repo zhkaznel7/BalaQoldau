@@ -8,11 +8,14 @@ import type { ContactInput } from '../api/client';
 import { validateContact } from '../api/contact';
 import { Link } from 'react-router-dom';
 import { CircleAlert, CircleCheck, Send } from 'lucide-react';
+import {useUser} from '../account/context';
 
 const labels = { senderName: tr("m239"), email: tr("m027"), message: tr("m240") };
 
 export default function Contact() {
   useUi();
+  const {session,api:accountApi}=useUser(),userId=session?.user?.id;
+  const edited=useRef({senderName:false,email:false});
   const [input, setInput] = useState<ContactInput>({ senderName: '', email: '', message: '' });
   const [errors, setErrors] = useState<Partial<Record<keyof ContactInput, string>>>({});
   const [status, setStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle');
@@ -21,11 +24,19 @@ export default function Contact() {
   const errorSummary = useRef<HTMLDivElement>(null);
   const request = useRef<AbortController | null>(null);
   const submission = useRef<{ id: string; key: string } | null>(null);
+  useEffect(()=>{
+    if(!userId)return;
+    const controller=new AbortController();
+    void accountApi.dashboard(controller.signal).then(profile=>{
+      if(!controller.signal.aborted)setInput(current=>({...current,senderName:edited.current.senderName?current.senderName:profile.fullName??'',email:edited.current.email?current.email:profile.email}));
+    }).catch(()=>{/* Optional prefill failure leaves the editable public form available. */});
+    return()=>controller.abort();
+  },[accountApi,userId]);
   useEffect(() => () => request.current?.abort(), []);
   useEffect(() => { if (invalidAttempt > 0) errorSummary.current?.focus(); }, [invalidAttempt]);
   function update(name: keyof ContactInput, value: string) {
+    if(name==='senderName'||name==='email')edited.current[name]=true;
     setInput(current => ({ ...current, [name]: value }));
-    submission.current = null;
     setErrors(current => { const next = { ...current }; delete next[name]; return next; });
     setStatus('idle');
     setFeedback('');
@@ -59,7 +70,7 @@ export default function Contact() {
     setStatus('pending');
     setFeedback('');
     try {
-      await api.contact(
+      await (userId?accountApi:api).contact(
         { ...fields, submissionId: submission.current!.id },
         controller.signal
       );
@@ -80,7 +91,7 @@ export default function Contact() {
   return <div className="container inner-page">
     <div className="page-intro"><h1 id="contact-heading">{""+tr("m243")+""}</h1><p>{""+tr("m244")+""}</p></div>
     <div className="contact-layout"><form className="search-form contact-form" onSubmit={submit} noValidate aria-labelledby="contact-heading" aria-describedby="contact-privacy" aria-busy={status === 'pending'}>
-      <p id="contact-privacy">{""+tr("m245")+""}</p>
+      <p id="contact-privacy">{tr('m245')}{userId&&<> {tr('m494')}</>}</p>
       <p className="field-hint">{""+tr("m246")+""}</p>
       {Object.keys(errors).length > 0 && <div className="error-summary" role="alert" tabIndex={-1} ref={errorSummary}>
         <h2>{""+tr("m122")+""}</h2><ul>{(['senderName', 'email', 'message'] as const).filter(name => errors[name]).map(name => <li key={name}><a href={`#contact-${name}`} onClick={event => { event.preventDefault(); document.getElementById(`contact-${name}`)?.focus(); }}>{tr(labels[name])}: {tr(errors[name])}</a></li>)}</ul>

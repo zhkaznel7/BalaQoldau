@@ -13,12 +13,16 @@ import { paginationQuery } from '../api/schemas.ts';
 import { programListInput } from './program-schemas.ts';
 import { handlePrograms } from './program-routes.ts';
 import {handleReports,reportListQuery} from './report-routes.ts';
+import {handleReplies} from './reply-routes.ts';
+import {replyDelivery} from '../users/mail.ts';
+import type {ReplyDelivery} from '../users/mail.ts';
+import {handleContacts,contactListQuery} from './contact-routes.ts';
 
 const empty = z.strictObject({});
 export const loginInput = z.strictObject({ email: z.email().max(254).transform(value => value.toLowerCase()),
   password: z.string().min(1).refine(value => Buffer.byteLength(value) <= 256) });
 const denied = () => new HttpError(401, 'UNAUTHENTICATED', 'Authentication required.');
-export function adminRouter(config: Config, database?: Database) {
+export function adminRouter(config: Config, database?: Database, deliver:ReplyDelivery|undefined=replyDelivery(config)) {
   const router = Router();
   const production = config.NODE_ENV === 'production';
   const name = production ? '__Host-balaqoldau_admin' : 'balaqoldau_admin';
@@ -30,7 +34,7 @@ export function adminRouter(config: Config, database?: Database) {
     if ((origin !== undefined && origin !== config.ADMIN_ORIGIN) || request.get('Sec-Fetch-Site') === 'cross-site'
       || (['POST','PATCH'].includes(request.method) && origin !== config.ADMIN_ORIGIN)) throw new HttpError(403, 'CSRF_FORBIDDEN', 'Request is not allowed.');
     const query = request.method === 'GET' && (request.path === '/audit-log'||/^\/programs\/[^/]+\/history$/.test(request.path)) ? paginationQuery
-      : request.method==='GET'&&request.path==='/reports'?reportListQuery:request.method === 'GET' && request.path === '/programs' ? programListInput : empty;
+      : request.method==='GET'&&request.path==='/contact-messages'?contactListQuery:request.method==='GET'&&request.path==='/reports'?reportListQuery:request.method === 'GET' && request.path === '/programs' ? programListInput : empty;
     if (!query.safeParse(request.query).success) throw new HttpError(400, 'VALIDATION_ERROR', 'Invalid request input.');
     next();
   });
@@ -42,6 +46,7 @@ export function adminRouter(config: Config, database?: Database) {
     handler: (_req, _res, next) => next(new HttpError(429, 'RATE_LIMITED', 'Too many requests.')) });
   router.use((req,res,next)=>(req.method==='GET'?reads:writes)(req,res,next));
   router.use('/programs', express.json({ limit: '64kb', strict: true, inflate: false }));
+  router.use(['/contact-messages','/reports'], express.json({limit:'16kb',strict:true,inflate:false}));
   router.use(express.json({ limit: '2kb', strict: true, inflate: false }));
   const loginLimit = rateLimit({ windowMs: 900000, limit: 5, standardHeaders: 'draft-8', legacyHeaders: false,
     handler: (_req, _res, next) => next(new HttpError(429, 'RATE_LIMITED', 'Too many requests.')) });
@@ -75,9 +80,15 @@ export function adminRouter(config: Config, database?: Database) {
         }
         if (!request.is('application/json')) throw new HttpError(415, 'UNSUPPORTED_MEDIA_TYPE', 'JSON required.');
       };
+      if(request.path==='/contact-messages'||request.path.startsWith('/contact-messages/')){
+        const principal=await authorize('contacts:manage');
+        try{if(request.path.endsWith('/replies'))await handleReplies(request,response,database,token!,checkCsrf,deliver);else await handleContacts(request,response,database,token!,checkCsrf);}catch(error){
+          if(error instanceof HttpError&&[401,403].includes(error.status))await repository.audit('rbac.denied',principal.id,'contacts:manage');throw error;
+        }return;
+      }
       if(request.path==='/reports'||request.path.startsWith('/reports/')){
         const principal=await authorize('programs:review');
-        try{await handleReports(request,response,database,token!,checkCsrf);}catch(error){
+        try{if(request.path.endsWith('/replies'))await handleReplies(request,response,database,token!,checkCsrf,deliver);else await handleReports(request,response,database,token!,checkCsrf);}catch(error){
           if(error instanceof HttpError&&[401,403].includes(error.status))await repository.audit('rbac.denied',principal.id,'programs:review');throw error;
         }return;
       }

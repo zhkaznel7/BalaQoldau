@@ -11,7 +11,7 @@ Messages store name, email, message, UUID and DB-assigned `created_at` (timestam
 Default retention: **30 × 24 hours from created_at**. Cleanup compares `created_at < cutoff`;
 an exact boundary timestamp is preserved. PostgreSQL transaction time computes one UTC
 cutoff, preserving microseconds; the workstation clock and caller-supplied dates are
-not accepted. All messages are covered, including unanswered messages (no resolution flag).
+not accepted. All messages are covered, including unread, read and resolved messages. Status changes do not extend retention.
 
 RETENTION_DAYS allows integer **30–365**, default 30. Values below 30 are refused to
 prevent accidental shortening. A longer period requires privacy-owner approval and an
@@ -140,3 +140,12 @@ by one microsecond; dry-run, configurable period, batch size and repeatability a
 All fixture DELETEs occur inside a transaction that is rolled back. A CLI dry-run is tested
 against the verified test database. No execute CLI command was run on development/production.
 No schema migration or external dependency was necessary.
+
+## Stage 16.1 inbox metadata
+
+Migration 014 submission IDs/digests and migration 015 status/version/updated_at remain on the same contact row. Cleanup uses only original created_at, so every status is eligible at the same cutoff and all submission metadata is erased with the row. Inbox has no hard-delete API or scheduler. Admin-only read/status operations use metadata-only security audit; no email/name/body in audit. Existing approved manual deletion and backup procedures still apply. Scheduling remains an operator task; no real development contacts were deleted.
+# Reply retention and delivery
+
+Contact replies are private communication and share the contact message's existing retention deadline, measured from the **original contact creation time**, not the reply time. Deleting an eligible contact through the authorized bounded retention command cascades to its reply bodies. This feature does not execute cleanup or configure scheduling. Existing scheduling/manual deletion responsibilities remain in force. Program-report replies persist with their reports; they are not covered by the contact cleanup command and need an operator-approved retention policy before public launch.
+
+Authenticated submissions are linked to the submitting session's account and replies appear in the private account inbox. Historical anonymous submissions are not linked by email. Anonymous contact email is attempted only through a configured existing mail service; acceptance is not guaranteed delivery. Anonymous reports have no email and cannot receive email replies. Message/reply bodies and recipient addresses must never enter application/audit logs. See `backend/CONTACT_API.md` for status semantics and least-privilege grants.

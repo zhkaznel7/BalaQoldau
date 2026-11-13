@@ -1,3 +1,4 @@
+import FamilyFields from './FamilyFields';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import type {FormEvent} from 'react';
 import {useSearchParams} from 'react-router-dom';
@@ -63,7 +64,7 @@ export default function ChildrenPage(){
 }
 function ChildEditor({child,options,cancel,saved,reload}:{child:Child|undefined;options:ChildOptions;cancel:()=>void;saved:()=>void;reload:()=>void}){
   useUi();const {api}=useUser(),[params]=useSearchParams(),t=authText[params.get('lang')==='ru'?'ru':'kk'];
-  const [values,setValues]=useState({nickname:child?.nickname??'',age:child?String(child.age):'',region:child?.region??'',preferences:child?.preferences??[]});
+  const [values,setValues]=useState({nickname:child?.nickname??'',age:child?String(child.age):'',region:child?.region??'',preferences:child?.preferences??[],familyContext:child?.familyContext??null});
   const [pending,setPending]=useState(false),[error,setError]=useState<unknown>(null),[invalid,setInvalid]=useState(false),[uncertain,setUncertain]=useState(false);
   const alive=useRef(true),heading=useRef<HTMLHeadingElement>(null),feedback=useRef<HTMLDivElement>(null);
   useEffect(()=>{alive.current=true;heading.current?.focus();return()=>{alive.current=false;};},[]);
@@ -79,6 +80,7 @@ function ChildEditor({child,options,cancel,saved,reload}:{child:Child|undefined;
     {!options.regions.length&&<p role="status">{tr('m358')}</p>}
     <form onSubmit={e=>void submit(e)} noValidate aria-busy={pending}><fieldset disabled={pending||uncertain}>
       <div className="account-field"><label htmlFor="child-nickname">{tr('m338')}</label><input id="child-nickname" autoComplete="off" maxLength={60} value={values.nickname} onChange={e=>setValues({...values,nickname:e.target.value})}/></div>
+      <FamilyFields household={false} value={values.familyContext} onChange={familyContext=>setValues(value=>({...value,familyContext}))}/>
       <div className="account-field"><label htmlFor="child-age">{tr('m339')}</label><input id="child-age" type="number" min="0" max="17" step="1" required value={values.age} onChange={e=>setValues({...values,age:e.target.value})}/></div>
       <div className="account-field"><label htmlFor="child-region">{tr('m340')}</label><select id="child-region" required value={values.region} onChange={e=>setValues({...values,region:e.target.value})}><option value="">{tr('m182')}</option>{options.regions.map(r=><option key={r.slug} value={r.slug}>{r.name}</option>)}</select></div>
       <fieldset className="child-preferences"><legend>{tr('m341')}</legend><p id="child-preferences-hint">{tr('m357')}</p>{options.categories.map(c=><label key={c.slug}><input type="checkbox" aria-describedby="child-preferences-hint" checked={values.preferences.includes(c.slug)} disabled={values.preferences.length>=10&&!values.preferences.includes(c.slug)} onChange={e=>setValues({...values,preferences:e.target.checked?[...values.preferences,c.slug]:values.preferences.filter(v=>v!==c.slug)})}/>{c.name}</label>)}</fieldset>

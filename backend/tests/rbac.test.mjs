@@ -9,7 +9,7 @@ test('least-privilege matrix denies missing/unknown roles and permissions', () =
   const expected = {
     editor: ['programs:read', 'programs:draft:write'],
     reviewer: ['programs:read', 'programs:review'],
-    admin: ['programs:read', 'programs:draft:write', 'programs:review', 'programs:publish', 'taxonomy:manage', 'users:roles:manage', 'audit:read'],
+    admin: ['programs:read', 'programs:draft:write', 'programs:review', 'programs:publish', 'taxonomy:manage', 'users:roles:manage', 'audit:read','contacts:manage'],
   };
   for (const [role, permissions] of Object.entries(expected)) {
     assert.deepEqual(permissionsFor(role), permissions);

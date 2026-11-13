@@ -232,8 +232,9 @@ try {
     await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
     await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
   }
-  await navigate('/'); await until('!!document.querySelector(".category-card")');
-  await evaluate('document.querySelector(".category-card").click()');
+  await navigate('/'); await until('!!document.querySelector(".hero-finder select[name=category] option[value=test-support]")');
+  await setValue('.hero-finder select[name=category]','test-support');
+  await evaluate('document.querySelector(".hero-finder").requestSubmit()');
   await until('location.pathname==="/results" && document.querySelectorAll(".program-card").length===2');
   assert.equal(await evaluate('new URLSearchParams(location.search).get("category")'), 'test-support');
   assert.ok(requests.some(item => item.path.endsWith('/programs') && new URLSearchParams(item.search).get('category') === 'test-support'));
@@ -286,7 +287,7 @@ try {
 
   catalogFailure = true; await navigate('/'); await until('!!document.querySelector(".request-error")');
   catalogFailure = false;
-  await evaluate('document.querySelector(".request-error button").click()'); await until('!!document.querySelector(".category-card")');
+  await evaluate('document.querySelector(".request-error button").click()'); await until('!!document.querySelector(".hero-finder select[name=category]:not(:disabled)")');
   check('catalog loading failure can be retried');
 
   await navigate('/contact'); await evaluate('document.querySelector(".contact-form").requestSubmit()');
@@ -302,7 +303,7 @@ try {
   assert.equal(await evaluate('document.querySelector("[name=email]").value'), '');
   check('contact validation, pending state, explicit retry, success and duplicate-submit guard');
 
-  await navigate('/'); await until('!!document.querySelector(".category-card")');
+  await navigate('/'); await until('!!document.querySelector(".hero-finder select[name=category]:not(:disabled)")');
   for (const width of [375, 768, 1024, 1440]) {
     await send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: width < 760 });
     assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'), true, `No overflow at ${width}`);
@@ -315,7 +316,7 @@ try {
   assert.equal(await evaluate('document.activeElement.classList.contains("mobile-toggle")'), true);
   check('four responsive widths, mobile menu, Escape and focus');
   await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
-  await navigate('/'); await until('!!document.querySelector(".category-card")');
+  await navigate('/'); await until('!!document.querySelector(".hero-finder select[name=category]:not(:disabled)")');
   await send('Page.bringToFront');
   await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
   await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
@@ -324,10 +325,10 @@ try {
   await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
   await until('document.activeElement.id==="main"');
   check('keyboard skip link focuses semantic main content');
-  await evaluate(`document.querySelector('header a[href="/find"]').focus()`);
+  await evaluate(`document.querySelector('header a[href="/results"]').focus()`);
   await keypress('Enter', 'Enter', 13);
-  await until('location.pathname==="/find" && document.activeElement.id==="main"');
-  assert.match(await evaluate('document.title'), /Қолдау іздеу/);
+  await until('location.pathname==="/results" && ["main","results-heading"].includes(document.activeElement.id)');
+  assert.match(await evaluate('document.title'), /Іздеу нәтижелері/);
   check('SPA keyboard navigation updates title and focuses main');
   await send('Emulation.setDeviceMetricsOverride', { width: 320, height: 1000, deviceScaleFactor: 1, mobile: true });
   await evaluate('document.querySelector(".mobile-toggle").focus()');
@@ -358,12 +359,14 @@ try {
 
   manyCategories = true;
   await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
-  await navigate('/'); await until('document.querySelectorAll(".category-card").length===6');
+  await navigate('/'); await until('document.querySelector(".hero-finder select[name=category]")?.options.length===7');
   for (const width of [320, 375, 768, 1024, 1440]) {
     await send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: width < 760 });
-    assert.equal(await evaluate(`(() => { const cards=[...document.querySelectorAll('.category-card')].map(el=>el.getBoundingClientRect()); return cards.every((a,i)=>cards.every((b,j)=>i===j||a.right<=b.left+1||b.right<=a.left+1||a.bottom<=b.top+1||b.bottom<=a.top+1)); })()`), true, `No category overlaps at ${width}`);
+    assert.equal(await evaluate(`(() => { const cards=[...document.querySelectorAll('.service-directions a')].map(el=>el.getBoundingClientRect()); return cards.every((a,i)=>cards.every((b,j)=>i===j||a.right<=b.left+1||b.right<=a.left+1||a.bottom<=b.top+1||b.bottom<=a.top+1)); })()`), true, `No category overlaps at ${width}`);
   }
-  check('six API categories with long Kazakh labels do not overlap at five widths');
+  assert.equal(await evaluate('document.querySelectorAll(".service-directions").length'),1);
+  assert.equal(await evaluate('document.querySelectorAll(".service-directions a").length'),4);
+  check('six long API category options and one four-link category navigation fit five widths');
 
   const auditReports = [];
   const routes = ['/', '/find', '/results?limit=1', '/results?q=empty', '/results?q=fail', '/program/' + id1, '/program/44444444-4444-4444-8444-444444444444', '/favorites', '/contact', '/not-found'];
@@ -381,7 +384,7 @@ try {
   }
   await writeFile(path.join(cwd, 'node_modules/.cache/stage6-accessibility.json'), JSON.stringify(auditReports, null, 2));
   check('50 page/width combinations: no overflow, semantic headings/labels and computed WCAG AA text contrast');
-  await navigate('/'); await until('document.querySelectorAll(".category-card").length===6');
+  await navigate('/'); await until('document.querySelector(".hero-finder select[name=category]")?.options.length===7');
   assert.equal(await evaluate('getComputedStyle(document.querySelector(".hero-copy")).animationName'), 'none');
   assert.equal(await evaluate('getComputedStyle(document.querySelector(".hero-finder")).animationName'), 'none');
   assert.equal(await evaluate('getComputedStyle(document.documentElement).scrollBehavior'), 'auto');
@@ -414,8 +417,8 @@ try {
   await evaluate('document.querySelector("main").dispatchEvent(new PointerEvent("pointerdown",{bubbles:true}))');
   await until('document.querySelector(".language-trigger").getAttribute("aria-expanded")==="false"');
   check('Escape restores trigger focus and outside pointer closes the language menu');
-  await evaluate('document.querySelector("#primary-navigation a[href^=\\"/find\\"]").click()');
-  await until('location.pathname==="/find"&&new URLSearchParams(location.search).get("lang")==="ru"');
+  await evaluate('document.querySelector("#primary-navigation a[href^=\\"/results\\"]").click()');
+  await until('location.pathname==="/results"&&new URLSearchParams(location.search).get("lang")==="ru"');
   await evaluate('document.querySelector(".footer-top a[href=\\"/contact\\"]").click()');
   await until('location.pathname==="/contact"&&new URLSearchParams(location.search).get("lang")==="ru"');
   assert.equal(await evaluate('document.querySelector(".language-trigger").textContent.trim()'),'РУС');

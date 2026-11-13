@@ -21,7 +21,7 @@ No registration or parent accounts. Stage 10.2 frontend uses this API; no DELETE
 | GET /programs/:uuid | All known admin roles; 200 or 404 |
 | PATCH /programs/:uuid | Editor: own draft only; Admin: any draft; requires version |
 | POST /programs/:uuid/submit | Editor: own draft; Admin: any draft; requires version |
-| POST /programs/:uuid/approve | Reviewer/Admin, never author or submitter; requires version and three explicit review attestations |
+| POST /programs/:uuid/approve | Reviewer must not be author/submitter; Admin may review own submission; requires version and three explicit review attestations |
 | POST /programs/:uuid/reject | Reviewer: another author's review; Admin: review/verified record to rejected; notes required |
 | POST /programs/:uuid/publish | Admin only; verified → published |
 | POST /programs/:uuid/unpublish | Admin only; published → draft, invalidates approval |
@@ -63,7 +63,7 @@ published cannot be patched: reject then reopen, or unpublish first. Every succe
 version; stale revisions and invalid transitions return 409 without changes. Actor/session/
 credential version is revalidated inside the transaction and user/program rows are locked.
 Editor cannot edit/submit another author's drafts; legacy owner-null drafts are Admin-only
-for editing/submission. Reviewers cannot edit content or publish. Admin cannot self-approve.
+for editing/submission. Reviewers cannot edit content or publish. Admin may approve own submissions with all source checks/history; Reviewer independence remains.
 
 Create/update/association changes/state transition and audit insertion share one transaction.
 Audit failure rolls everything back and returns generic 503. Denials are logged outside the

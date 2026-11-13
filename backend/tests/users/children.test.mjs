@@ -42,7 +42,7 @@ test('private child CRUD and recommendations: ownership, consent, quota and matc
       let response=await call('/children',users[0],'POST',input);assert.equal(response.status,201);child=(await response.json()).data;
       response=await call('/children',users[0],'POST',{...input,nickname:null,age:0});assert.equal(response.status,201);second=(await response.json()).data;
       assert.equal((await (await call('/children')).json()).data.length,2);assert.deepEqual((await (await call('/children',users[1])).json()).data,[]);
-      assert.deepEqual(Object.keys(child).sort(),['age','id','nickname','preferences','region','version']);
+      assert.deepEqual(Object.keys(child).sort(),['age','familyContext','id','nickname','preferences','region','version']);
       assert.equal((await call('/children?userId='+users[1].id)).status,400);
     });
     await t.test('IDOR reads, writes, deletes and recommendations are indistinguishable from missing IDs',async()=>{

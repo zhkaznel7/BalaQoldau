@@ -13,7 +13,7 @@ export async function handleReports(req:Request,res:Response,db:Database,token:s
    const actor=await programActor(client,token,'programs:review');
    if(req.method==='GET'&&req.path==='/reports'){
      const p=validate(reportListQuery,req.query);
-     const row=(await client.query<{total:number;data:unknown[]}>(`WITH entries AS(SELECT r.id,r.program_id AS "programId",p.title AS "programTitle",r.reason,r.explanation,r.status,r.version,
+     const row=(await client.query<{total:number;data:unknown[]}>(`WITH entries AS(SELECT EXISTS(SELECT 1 FROM balaqoldau.inbox_replies reply WHERE reply.report_id=r.id) AS replied,r.id,r.program_id AS "programId",p.title AS "programTitle",r.reason,r.explanation,r.status,r.version,
        r.created_at AS "createdAt",r.updated_at AS "updatedAt" FROM balaqoldau.program_reports r JOIN balaqoldau.programs p ON p.id=r.program_id
        WHERE ($1::text IS NULL OR r.status=$1) AND ($2::uuid IS NULL OR r.program_id=$2))
        SELECT (SELECT count(*)::int FROM entries) AS total,COALESCE((SELECT json_agg(items) FROM

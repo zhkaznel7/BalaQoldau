@@ -84,7 +84,7 @@ function Header() {
         if (!event.currentTarget.contains(event.relatedTarget) && !(event.relatedTarget instanceof HTMLElement && event.relatedTarget.closest('.mobile-toggle'))) setOpen(false);
     }}>
     <NavLink to={target('/')} end>{""+tr("m159")+""}</NavLink>
-    <NavLink to={target('/find')}>{""+tr("m160")+""}</NavLink>
+    <NavLink to={target('/results')}>{""+tr("m160")+""}</NavLink>
     <Link to={target('/')+'#how'} onClick={() => setOpen(false)}>{""+tr("m161")+""}</Link>
     <NavLink to={target('/contact')}>{""+tr("m162")+""}</NavLink>
     <NavLink to={target('/profile')}>{""+tr("m163")+""}</NavLink>

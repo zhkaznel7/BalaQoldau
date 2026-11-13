@@ -81,7 +81,9 @@ test('public API against dedicated PostgreSQL; every fixture and message is roll
       for(const slug of ['benefits','free-courses','grants','clubs']){
         assert.ok(categories.some(item=>item.slug===slug));
         const filtered=await get('/api/programs?category='+slug);
-        assert.equal(filtered.data.length,0,'No fabricated programs in empty standard categories');
+        const expected=(await client.query('SELECT p.id FROM balaqoldau.published_programs p JOIN balaqoldau.categories c ON c.id=p.category_id WHERE c.slug=$1',[slug])).rows;
+        assert.equal(filtered.pagination.total,expected.length,'Catalog must reflect existing published data, not assume development categories are empty');
+        assert.ok(filtered.data.every(item=>expected.some(row=>row.id===item.id)),'No fabricated or unpublished programs');
       }
       for (const path of ['/api/categories', '/api/regions']) {
         const result = await get(path);

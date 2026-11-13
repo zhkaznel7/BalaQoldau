@@ -297,3 +297,5 @@ Windows PowerShell орындау саясаты npm скриптін бұғат
 </details>
 
 Admin session regressions (built frontend, owned Chrome, API fixtures only; no database): `node tests/admin-session-browser.mjs` from this directory. For StrictMode testing against an owned loopback Vite dev server, set ADMIN_SESSION_TEST_ORIGIN=http://127.0.0.1:PORT. The same 18 KZ/RU scenarios cover navigation, refresh, focus bursts, temporary failures, Retry-After recovery, 401 and 403. Unit tests run through the existing npm test command.
+
+Stage 16.1 adds /admin/messages and /admin/messages/:id for contacts:manage (Admin only), separate from program reports. The real form -> DB -> inbox -> resolution browser suite: node --env-file=../backend/.env tests/contact-inbox-browser.mjs after both builds. It uses synthetic rollback fixtures and checks KZ/RU, safe replay after a lost response and mobile layouts. See backend/CONTACT_API.md for contracts/manual URLs.

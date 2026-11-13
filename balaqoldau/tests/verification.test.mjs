@@ -17,6 +17,7 @@ test('archive and reopening controls are role aware, while decisions stay backen
  assert.ok(permittedActions(editor,{...p,status:'rejected'}).includes('reopen'));assert.ok(!permittedActions(editor,{...p,status:'archived'}).includes('reopen'));
  assert.ok(permittedActions(admin,{...p,status:'published'}).includes('archive'));assert.ok(!permittedActions(editor,{...p,status:'published'}).includes('archive'));
  assert.ok(!permittedActions({id,role:'reviewer',permissions:['programs:review']},{...p,status:'published'}).includes('request-recheck'),'visibility control remains Admin-only');
- assert.ok(!permittedActions(admin,{...p,status:'review',submittedBy:id}).includes('approve'));
+  assert.ok(permittedActions(admin,{...p,status:'review',submittedBy:id}).includes('approve'));
+  assert.ok(!permittedActions({id,role:'reviewer',permissions:['programs:read','programs:review']},{...p,status:'review',submittedBy:id}).includes('approve'));
 });
 test('all verification/report UI labels have Kazakh/Russian translations',()=>{for(let i=363;i<=417;i++){assert.notEqual(tr('m'+i,{},'kk'),tr('m'+i,{},'ru'));assert.notEqual(tr('m'+i,{},'ru'),'m'+i);}});

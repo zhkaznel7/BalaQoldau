@@ -165,3 +165,5 @@ frontend production 0; 10 existing frontend development-only moderate findings r
 No full WCAG, production permissions, infrastructure privacy or load-test certification
 is claimed. pg emits pgpass and single-client test-harness concurrency deprecation
 warnings for a future pg@9 upgrade; dependencies are unchanged.
+
+Private child familyContext optionally stores disabilitySupportEligible and supportNeeds only; household flags/count belong to the parent. Owner/session/CSRF/version rules remain. One explicitly selected neutral support need reuses the existing source-verified single-need matcher; absent/multiple selections remain unknown for that predicate. No disability/household-status rule is inferred. JSON context never enters public URLs, session summaries, admin audit payloads or public APIs; null clears it and omitted updates preserve it.
