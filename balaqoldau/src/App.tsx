@@ -3,7 +3,7 @@ import {useUi} from './i18n/useUi.ts';
 import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { BrowserRouter, Link, NavLink, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowRight, ArrowUpRight, Bookmark, Check, ChevronDown, Heart, MapPin, Menu, Search, Info, Users, X, SlidersHorizontal, ArrowLeft, FileText, ExternalLink } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, Bookmark, Check, ChevronDown, Heart, MapPin, Menu, Search, Info, Users, X, SlidersHorizontal, ArrowLeft, FileText, ExternalLink, Phone, Mail } from 'lucide-react';
 import { ApiError, isProgramId } from './api/client';
 import { loadPrograms, loadFavorites, api } from './api/service';
 import { resultsUrl, updateFilters } from './api/navigation';
@@ -28,6 +28,8 @@ import {matchingContext} from './api/matching';
 import {catalogCategories,categoryName} from './api/categories';
 import {referenceName} from './api/reference-data';
 import './refinements.css';
+// PLACEHOLDERS: no verified public project contact details yet. Never invent numbers/addresses.
+const footerContacts:{phone:string|null;email:string|null}={phone:null,email:null};
 const FavoritesContext = createContext<{
     ids: string[];
     clear: () => void;
@@ -77,7 +79,6 @@ function Header() {
         return () => document.removeEventListener('keydown', closeMenu);
     }, [open]);
     return <header className="header">
-    <div className="platform-notice"><div className="container"><Info aria-hidden="true" size={16}/><span>{""+tr("m157")+""}</span></div></div>
     <div className="container nav">
     <Logo />
     <nav id="primary-navigation" className={open ? 'nav-links is-open' : 'nav-links'} aria-label={tr("m158")} onBlur={event => {
@@ -85,7 +86,6 @@ function Header() {
     }}>
     <NavLink to={target('/')} end>{""+tr("m159")+""}</NavLink>
     <NavLink to={target('/results')}>{""+tr("m160")+""}</NavLink>
-    <Link to={target('/')+'#how'} onClick={() => setOpen(false)}>{""+tr("m161")+""}</Link>
     <NavLink to={target('/contact')}>{""+tr("m162")+""}</NavLink>
     <NavLink to={target('/profile')}>{""+tr("m163")+""}</NavLink>
     </nav>
@@ -128,19 +128,22 @@ function Layout() {
     </main>
     <footer>
     <div className="container footer-top">
-    <div>
+    <div className="footer-brand">
     <Logo />
+    <p>{tr('m525')}</p>
     </div>
-    <nav aria-label={tr("m174")}>
-    <Link to="/find">{""+tr("m175")+" "}<ArrowUpRight aria-hidden="true" size={16}/>
-    </Link>
-    <Link to="/favorites">{""+tr("m164")+""}</Link>
-    <Link to="/contact">{""+tr("m162")+""}</Link>
+    <section className="footer-contacts" aria-labelledby="footer-contact-heading">
+      <h2 id="footer-contact-heading">{tr('m526')}</h2>
+      <ul><li><Phone size={20} aria-hidden="true"/><div><span className="footer-contact-label">{tr('m531')}</span>{footerContacts.phone?<a href={'tel:'+footerContacts.phone.replace(/[\s()-]/g,'')}>{footerContacts.phone}</a>:<span className="footer-placeholder">{tr('m527')}</span>}</div></li>
+      <li><Mail size={20} aria-hidden="true"/><div><span className="footer-contact-label">{tr('m027')}</span>{footerContacts.email?<a href={'mailto:'+footerContacts.email}>{footerContacts.email}</a>:<span className="footer-placeholder">{tr('m528')}</span>}</div></li></ul>
+    </section>
+    <nav className="footer-navigation" aria-label={tr("m174")}>
+    <h2>{tr('m529')}</h2><p>{tr('m530')}</p>
+    <Link to="/contact">{tr("m162")}<ArrowUpRight aria-hidden="true" size={16}/></Link>
     </nav>
     </div>
     <div className="container footer-bottom">
     <span>© {new Date().getFullYear()} BalaQoldau</span>
-    <span>{""+tr("m176")+""}</span>
     </div>
     </footer>
     </>;

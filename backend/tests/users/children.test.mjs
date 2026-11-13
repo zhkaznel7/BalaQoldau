@@ -31,7 +31,7 @@ test('private child CRUD and recommendations: ownership, consent, quota and matc
       for(const path of ['/children','/children/options'])assert.equal((await call(path,null)).status,401);
       assert.equal((await call('/children',null,'POST',input)).status,401);
       assert.equal((await call('/children',users[0],'POST',input,false)).status,403);
-      for(const extra of [{age:18},{age:-1},{age:6.5},{region:'unsupported-region'},{preferences:['unsupported-category']},{fullName:'private'},{medicalDiagnosis:'private'},{userId:users[1].id},{nickname:'123456789012'},{preferences:[suffix,suffix]}]){
+      for(const extra of [{age:18},{age:-1},{age:6.5},{region:'unsupported-region'},{preferences:['unsupported-category']},{fullName:'123456789012'},{medicalDiagnosis:'private'},{userId:users[1].id},{nickname:'123456789012'},{preferences:[suffix,suffix]}]){
         const response=await call('/children',users[0],'POST',{...input,...extra});assert.equal(response.status,400);assert.ok(!(await response.text()).includes('private'));
       }
       const options=await call('/children/options');assert.equal(options.headers.get('cache-control'),'no-store');const data=(await options.json()).data;
@@ -42,7 +42,7 @@ test('private child CRUD and recommendations: ownership, consent, quota and matc
       let response=await call('/children',users[0],'POST',input);assert.equal(response.status,201);child=(await response.json()).data;
       response=await call('/children',users[0],'POST',{...input,nickname:null,age:0});assert.equal(response.status,201);second=(await response.json()).data;
       assert.equal((await (await call('/children')).json()).data.length,2);assert.deepEqual((await (await call('/children',users[1])).json()).data,[]);
-      assert.deepEqual(Object.keys(child).sort(),['age','familyContext','id','nickname','preferences','region','version']);
+      assert.deepEqual(Object.keys(child).sort(),['age','familyContext','fullName','gender','id','interests','nickname','preferences','region','version']);
       assert.equal((await call('/children?userId='+users[1].id)).status,400);
     });
     await t.test('IDOR reads, writes, deletes and recommendations are indistinguishable from missing IDs',async()=>{

@@ -5,7 +5,7 @@ import type {ChildInput} from './children-schemas.ts';
 export interface Child extends ChildInput {id:string;version:number}
 const active=`SELECT u.id FROM balaqoldau.user_sessions s JOIN balaqoldau.user_accounts u ON u.id=s.user_id
   WHERE s.token_hash=$1 AND s.expires_at>clock_timestamp() AND NOT u.disabled AND s.credential_version=u.credential_version`;
-const childFields=`c.id,c.nickname,c.age,r.slug AS region,c.version,c.family_context AS "familyContext",
+const childFields=`c.id,c.full_name AS "fullName",c.gender,c.interests,c.nickname,c.age,r.slug AS region,c.version,c.family_context AS "familyContext",
   ARRAY(SELECT k.slug FROM balaqoldau.child_preferences pref JOIN balaqoldau.categories k ON k.id=pref.category_id
     WHERE pref.child_id=c.id ORDER BY k.slug) AS preferences`;
 interface State {authorized:boolean;owned:boolean;valid:boolean;data:Child|null}
@@ -38,12 +38,12 @@ export function childrenRepository(db:Database){
         valid AS (SELECT EXISTS(SELECT 1 FROM region) AND (SELECT count(*) FROM categories)=cardinality($5::text[]) AS ok),
         free AS (SELECT n FROM generate_series(1,20) n WHERE NOT EXISTS(SELECT 1 FROM balaqoldau.child_profiles c
           WHERE c.user_id IN(SELECT id FROM active) AND c.slot=n) ORDER BY n LIMIT 1),
-        created AS (INSERT INTO balaqoldau.child_profiles(user_id,slot,nickname,age,region_id,family_context)
-          SELECT a.id,f.n,$2,$3,r.id,$8::jsonb FROM active a,free f,region r,valid v WHERE v.ok AND $6::uuid IS NULL
-          ON CONFLICT(user_id,slot) DO NOTHING RETURNING id,nickname,age,version,family_context AS "familyContext"),
-        edited AS (UPDATE balaqoldau.child_profiles c SET nickname=$2,age=$3,region_id=r.id,version=c.version+1,updated_at=clock_timestamp(),family_context=CASE WHEN $9 THEN $8::jsonb ELSE c.family_context END
+        created AS (INSERT INTO balaqoldau.child_profiles(user_id,slot,nickname,age,region_id,family_context,full_name,gender,interests)
+          SELECT a.id,f.n,$2,$3,r.id,$8::jsonb,$10,$12,COALESCE($14::text[],ARRAY[]::text[]) FROM active a,free f,region r,valid v WHERE v.ok AND $6::uuid IS NULL
+          ON CONFLICT(user_id,slot) DO NOTHING RETURNING id,nickname,age,version,full_name AS "fullName",gender,interests,family_context AS "familyContext"),
+        edited AS (UPDATE balaqoldau.child_profiles c SET nickname=$2,age=$3,region_id=r.id,version=c.version+1,updated_at=clock_timestamp(),full_name=CASE WHEN $11 THEN $10 ELSE c.full_name END,gender=CASE WHEN $13 THEN $12 ELSE c.gender END,interests=COALESCE($14::text[],c.interests),family_context=CASE WHEN $9 THEN $8::jsonb ELSE c.family_context END
           FROM region r,valid v WHERE v.ok AND c.id=$6::uuid AND c.version=$7::int AND c.user_id IN(SELECT id FROM active)
-          RETURNING c.id,c.nickname,c.age,c.version,c.family_context AS "familyContext"),
+          RETURNING c.id,c.nickname,c.age,c.version,c.full_name AS "fullName",c.gender,c.interests,c.family_context AS "familyContext"),
         changed AS (SELECT * FROM created UNION ALL SELECT * FROM edited),
         removed AS (DELETE FROM balaqoldau.child_preferences WHERE child_id IN(SELECT id FROM changed)
           AND category_id NOT IN(SELECT id FROM categories) RETURNING child_id),
@@ -51,7 +51,7 @@ export function childrenRepository(db:Database){
           ON CONFLICT(child_id,category_id) DO NOTHING RETURNING child_id)
         SELECT EXISTS(SELECT 1 FROM active) AS authorized,EXISTS(SELECT 1 FROM owned) AS owned,(SELECT ok FROM valid) AS valid,
           (SELECT row_to_json(item) FROM (SELECT changed.*,$4::text AS region,$5::text[] AS preferences FROM changed)item) AS data`,
-      [userTokenHash(token),input.nickname,input.age,input.region,[...input.preferences].sort(),id??null,version??null,input.familyContext==null?null:JSON.stringify(input.familyContext),input.familyContext!==undefined])).rows[0];
+      [userTokenHash(token),input.nickname,input.age,input.region,[...input.preferences].sort(),id??null,version??null,input.familyContext==null?null:JSON.stringify(input.familyContext),input.familyContext!==undefined,input.fullName??null,input.fullName!==undefined,input.gender??null,input.gender!==undefined,input.interests??null])).rows[0];
     },
     async remove(token:string,id:string,version:number){
       return (await db.query<{authorized:boolean;owned:boolean;removed:boolean}>(`WITH active AS MATERIALIZED (${active} FOR SHARE OF u),

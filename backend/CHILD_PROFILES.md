@@ -26,7 +26,8 @@ Create body: optional `nickname` (null/omitted means none), required `age`, requ
 `region` slug, optional `preferences` array of **program category** slugs (default []).
 PATCH requires nickname/age/region/preferences plus current version; omission is rejected
 instead of silently resetting previously stored optional fields. Responses contain only
-id, nickname, age, region, preferences and version, never parent IDs or account details.
+id, nickname, age, region, preferences, familyContext, fullName, gender, interests and version,
+never parent IDs or account details. Stage 18 optional attributes are described below.
 
 - Age: completed years, integer 0–17. No birth date or automatic birthday inference.
 - Nickname: NFC, trimmed/collapsed spaces, max 30 Unicode characters; letters/marks,
@@ -35,8 +36,8 @@ id, nickname, age, region, preferences and version, never parent IDs or account 
   parent has entered a legal name; UI explicitly instructs parents to use a nickname.
 - Region: existing taxonomy row, mandatory; city only if already represented there.
 - Preferences: 0–10 unique, existing program category slugs; max 80 characters each.
-  Family eligibility categories, disability/medical status and arbitrary needs text
-  are deliberately **not** stored or inferred.
+  Optional neutral support needs remain in the existing private familyContext.
+  Diagnoses/documents and arbitrary support-needs text are not collected; no medical eligibility is inferred.
 - 20 profiles per account. A DB slot check and unique owner/slot key enforce the limit
   even during concurrent inserts. A slot collision safely returns CHILD_LIMIT/409;
   refresh before deciding whether to retry. Mutations are never automatically retried.
@@ -167,3 +168,15 @@ is claimed. pg emits pgpass and single-client test-harness concurrency deprecati
 warnings for a future pg@9 upgrade; dependencies are unchanged.
 
 Private child familyContext optionally stores disabilitySupportEligible and supportNeeds only; household flags/count belong to the parent. Owner/session/CSRF/version rules remain. One explicitly selected neutral support need reuses the existing source-verified single-need matcher; absent/multiple selections remain unknown for that predicate. No disability/household-status rule is inferred. JSON context never enters public URLs, session summaries, admin audit payloads or public APIs; null clears it and omitted updates preserve it.
+
+## Stage 18 — optional enhanced details
+
+Migration `018_enhanced_child_profiles.sql` adds private `full_name` (nullable varchar(100)), `gender` (nullable female/male), and `interests` (default empty array). Existing rows, sessions, users, admins and programs are preserved. Apply only through the verified development migration helper; no resets or role changes. Production operators must extend existing child_profiles column-level INSERT/UPDATE allowlists with `(full_name,gender,interests)`; the fail-closed runtime permission check expects these columns, without broadening other privileges.
+
+Existing create/update routes additionally accept `fullName`, `gender`, `interests`. All are optional; omitted edits preserve them, explicit null clears name/gender and [] clears interests. Full name: NFC, trimmed/collapsed spaces, 100 Unicode characters, letters/marks/spaces/apostrophes/dot/hyphen only; no numbers or controls. Gender may be omitted; it is not an eligibility rule. Interests are unique bounded choices `education`, `creativity`, `sports`, localized in the existing KZ/RU dictionaries. Existing familyContext.supportNeeds remains the single support-needs storage; no duplicate field or sensitive free-text field.
+
+Details and edit forms show full name, gender, interests, age, nickname, localized region/categories, existing support needs and optional family context. Only the owning regular-user session can read/change them; no admin or public child API is added. Name/gender never enter logs, audit payloads, recommendation requests/results or public URLs. Use only a nickname if preferred. IIN, diagnosis, birth date and documents remain unsupported. The frontend does not persist child details in browser storage.
+
+Interests map solely to existing program tags: education→education-support, creativity→creative-development, sports→sports-activities. They break ranking ties in the existing PostgreSQL matching query before pagination; they do not filter programs or establish eligibility. Explicit support needs continue through the existing verified-rule matcher. Missing information stays POSSIBLE. Name and gender are never used in matching. Anonymous public search keeps its original behavior.
+
+Manual UI: `/profile/children?lang=kk` and `/profile/children?lang=ru`. Automated tests use rollback-only synthetic fixtures; no real child records are created or overwritten by QA.

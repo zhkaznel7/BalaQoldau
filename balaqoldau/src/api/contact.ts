@@ -1,5 +1,15 @@
 import {tr} from '../i18n/ui.ts';
 import type { ContactInput } from './client.ts';
+import {UserAuthError} from '../account/api.ts';
+type Sender={contact:(input:ContactInput,signal?:AbortSignal)=>Promise<unknown>};
+// Resolve identity immediately before submission; an unavailable session is never anonymous.
+export async function sendContact(account:Sender&{session:(signal?:AbortSignal)=>Promise<{authenticated:boolean}>},anonymous:Sender,input:ContactInput,signal?:AbortSignal):Promise<void>{
+ let authenticated:boolean;
+ try{authenticated=(await account.session(signal)).authenticated;}
+ catch(error){if(error instanceof UserAuthError&&error.status===404&&error.authDisabled)authenticated=false;else throw error;}
+ if(signal?.aborted)throw new DOMException('Aborted','AbortError');
+ await (authenticated?account:anonymous).contact(input,signal);
+}
 function hasControl(value: string, allowLines = false): boolean {
   return [...value].some(character => {
     const code = character.charCodeAt(0);

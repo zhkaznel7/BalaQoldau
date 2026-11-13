@@ -22,7 +22,7 @@ export function userRouter(config: Config, database?: Database, delivery: ResetD
   const name = production ? '__Host-balaqoldau_user' : 'balaqoldau_user';
   const cookie = { httpOnly: true, secure: production, sameSite: 'strict' as const, path: production ? '/' : '/api/auth' };
   router.use((request, _response, next) => {
-    if (!config.USER_AUTH_ENABLED) throw new HttpError(404, 'NOT_FOUND', 'Route not found.');
+    if (!config.USER_AUTH_ENABLED) throw new HttpError(404, request.method==='GET'&&request.path==='/session'?'AUTH_DISABLED':'NOT_FOUND', 'Route not found.');
     if (production && !request.secure) throw new HttpError(403, 'HTTPS_REQUIRED', 'HTTPS required.');
     const origin = request.get('Origin');
     if ((origin !== undefined && origin !== config.USER_ORIGIN) || request.get('Sec-Fetch-Site') === 'cross-site'

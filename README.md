@@ -1,5 +1,7 @@
 # BalaQoldau
 
+Stage 18: [private enhanced child profiles, optional fields and recommendation ranking](backend/CHILD_PROFILES.md#stage-18--optional-enhanced-details).
+
 Stage 16: [admin verification, expiry, reporting, migration 011 and launch requirements](backend/VERIFICATION.md). Existing sessions, RBAC and matching are reused; no real catalog is populated.
 
 Қазақ тіліндегі әлеуметтік қолдауды іздеу платформасы: React/TypeScript/Vite frontend,

@@ -5,13 +5,14 @@ import { Link, useLocation } from 'react-router-dom';
 import { resultsUrl } from '../api/navigation';
 import SupportFinder from './SupportFinder';
 import {categoryName} from '../api/categories';
+import {Search,ClipboardCheck,MessageSquare,ShieldCheck,WalletCards,GraduationCap,Palette,Award,ArrowUpRight} from 'lucide-react';
 
 // Stable category navigation never inserts translated labels into the search query.
 const directions = [
-  { category:'benefits', text:'m260' },
-  { category:'free-courses', text:'m262' },
-  { category:'clubs', text:'m264' },
-  { category:'grants', text:'m266' },
+  { category:'benefits', text:'m260',icon:WalletCards },
+  { category:'free-courses', text:'m262',icon:GraduationCap },
+  { category:'clubs', text:'m264',icon:Palette },
+  { category:'grants', text:'m266',icon:Award },
 ];
 
 export default function Home() {
@@ -50,14 +51,20 @@ export default function Home() {
     <div className="container portal-directory">
       <section className="section directions" aria-labelledby="directions-heading">
         <div className="section-heading"><h2 id="directions-heading">{""+tr("m277")+""}</h2></div>
-        <div className="service-directions">{directions.map(({ category, text }) =>
-          <Link key={category} to={resultsUrl({ category })}><h3>{categoryName(category)}</h3><p>{tr(text)}</p></Link>)}</div>
+        <div className="service-directions">{directions.map(({ category, text,icon:Icon }) =>
+          <Link className="support-direction-card" key={category} to={resultsUrl({ category })}><Icon aria-hidden="true"/><div><h3>{categoryName(category)}</h3><p>{tr(text)}</p></div><ArrowUpRight aria-hidden="true"/></Link>)}</div>
         <p className="section-caption">{""+tr("m278")+""}</p>
         </section>
       
     </div>
-    <section className="container portal-help" aria-labelledby="help-heading"><h2 id="help-heading">{""+tr("m283")+""}</h2>
-      <p><Link to="/find">{""+tr("m284")+""}</Link>{" "+tr("m285")+" "}<Link to="/contact">{""+tr("m286")+""}</Link>.</p>
+    <section className="container portal-about" aria-labelledby="about-heading">
+      <header className="about-intro"><div><h2 id="about-heading">{tr('m508')}</h2><p>{tr('m509')}</p></div><div><p>{tr('m510')}</p><Link className="button primary" to="/find">{tr('m513')}</Link></div></header>
+      <div className="about-grid">
+        <article><Search aria-hidden="true"/><h3>{tr('m511')}</h3><p>{tr('m512')}</p><Link to="/profile/children">{tr('m514')}</Link></article>
+        <article><ClipboardCheck aria-hidden="true"/><h3>{tr('m515')}</h3><p>{tr('m516')}</p></article>
+        <article><MessageSquare aria-hidden="true"/><h3>{tr('m517')}</h3><p>{tr('m518')}</p><Link to="/contact">{tr('m519')}</Link></article>
+        <article><ShieldCheck aria-hidden="true"/><h3>{tr('m520')}</h3><p>{tr('m521')}</p></article>
+      </div>
     </section>
   </>;
 }

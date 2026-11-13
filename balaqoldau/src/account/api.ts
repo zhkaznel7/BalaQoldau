@@ -13,7 +13,8 @@ export interface ProfileInput {fullName:string|null;location:string|null;familyC
 export class UserAuthError extends Error {
   readonly status: number;
   readonly key: AuthMessage;
-  constructor(status: number, key: AuthMessage) { super(key); this.status=status; this.key=key; }
+  readonly authDisabled:boolean;
+  constructor(status: number, key: AuthMessage, authDisabled=false) { super(key); this.status=status; this.key=key;this.authDisabled=authDisabled; }
 }
 const object = (value: unknown): Record<string,unknown> => {
   if (!value || typeof value!=='object' || Array.isArray(value)) throw new UserAuthError(503,'unavailable');
@@ -65,7 +66,7 @@ export function createUserApi(fetcher:typeof fetch=fetch, expired:()=>void=()=>{
       let code=''; try{const payload=object(await response.json()); code=String(object(payload.error).code);}catch{/* Never echo server details. */}
       const key:AuthMessage=response.status===401?(path==='/login'?'credentials':'expired'):response.status===403?'forbidden':response.status===429?'limited':code==='PASSWORD_TOO_SHORT'?'passwordShort':code==='PASSWORD_TOO_LONG'?'passwordLong':
         code==='CHILD_LIMIT'?'childLimit':path.startsWith('/children')&&response.status===404?'childMissing':path.startsWith('/children')&&response.status===409?'childConflict':path.startsWith('/children')&&response.status===400?'childInvalid':code==='RESET_UNAVAILABLE'?'noMail':code==='INVALID_RESET'?'invalidReset':code==='PASSWORD_POLICY'?'passwordInvalid':response.status===404&&path.startsWith('/saved-programs/')?'programUnavailable':response.status===409?'conflict':response.status===400?'invalid':'unavailable';
-      throw new UserAuthError(response.status,key);
+      throw new UserAuthError(response.status,key,path==='/session'&&response.status===404&&code==='AUTH_DISABLED');
     }
     if(response.status===204)return null;
     try{const payload=object(await response.json());return path.startsWith('/messages?')||path.startsWith('/saved-programs?')||/^\/children\/[^/]+\/recommendations\?/.test(path)?payload:payload.data;}catch{throw new UserAuthError(503,'unavailable');}

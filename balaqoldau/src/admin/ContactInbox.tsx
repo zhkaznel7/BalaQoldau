@@ -34,13 +34,18 @@ function Message({id}:{id:string}){
  const [changed,setChanged]=useState<Awaited<ReturnType<typeof api.contact>>|null>(null),[error,setError]=useState<Error|null>(null),[pending,setPending]=useState(false),[notice,setNotice]=useState(false);
  const data=changed??state.data;
  async function change(status:ContactStatus){if(!data||pending||error)return;setPending(true);setNotice(false);try{setChanged(await api.changeContact(id,data.version,status));setNotice(true);}catch(e){setError(e instanceof Error?e:new AdminError(503));}finally{setPending(false);}}
- return <section><Link to="/admin/messages">{tr('m078')}</Link><h1>{tr('m466')}</h1>
+ return <section className="message-detail"><Link to="/admin/messages">{tr('m078')}</Link><h1>{tr('m466')}</h1>
   {state.loading?<p role="status">{tr('m280')}</p>:state.error?<Failure error={state.error} retry={state.retry}/>:data&&<>
    {notice&&<p role="status" className="admin-success">{tr('m467')}</p>}
    {error&&<Failure error={error} retry={()=>{setChanged(null);setError(null);setNotice(false);state.retry();}}/>}
-   <dl className="admin-facts"><dt>{tr('m239')}</dt><dd>{data.senderName}</dd><dt>{tr('m027')}</dt><dd>{data.email}</dd><dt>{tr('m068')}</dt><dd>{tr(labels[data.status])}</dd><dt>{tr('m468')}</dt><dd><time dateTime={data.createdAt}>{new Date(data.createdAt).toLocaleString(dateLocale())}</time></dd></dl>
-   {data.replied&&<p>{tr('m488')}</p>}<ReplyPanel kind="contact-messages" id={id}/><h2>{tr('m240')}</h2><p className="contact-message-text">{data.message}</p>
+   <div className="message-detail-grid">
+    <section className="inbox-card sender-card" aria-labelledby="sender-heading"><h2 id="sender-heading">{tr('m504')}</h2>
+     <dl className="admin-facts"><dt>{tr('m239')}</dt><dd>{data.senderName}</dd><dt>{tr('m027')}</dt><dd>{data.email}</dd><dt>{tr('m068')}</dt><dd><span className="message-status">{tr(labels[data.status])}</span></dd><dt>{tr('m468')}</dt><dd><time dateTime={data.createdAt}>{new Date(data.createdAt).toLocaleString(dateLocale())}</time></dd></dl>
+    </section>
+    <section className="inbox-card original-message" aria-labelledby="original-heading"><h2 id="original-heading">{tr('m505')}</h2><p className="contact-message-text">{data.message}</p></section>
+   </div>
    <div className="admin-actions">{(data.status==='unread'?['read']:data.status==='read'?['resolved','unread']:['read']).map(status=><button key={status} disabled={pending||!!error} onClick={()=>void change(status as ContactStatus)}>{tr(status==='resolved'?'m410':status==='unread'?'m470':data.status==='resolved'?'m471':'m469')}</button>)}</div>
+   <ReplyPanel kind="contact-messages" id={id} replied={data.replied} defaultOpen/>
   </>}
  </section>;
 }

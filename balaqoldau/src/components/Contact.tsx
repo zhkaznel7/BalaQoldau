@@ -5,7 +5,7 @@ import type { FormEvent } from 'react';
 import { api } from '../api/service';
 import { ApiError } from '../api/client';
 import type { ContactInput } from '../api/client';
-import { validateContact } from '../api/contact';
+import { validateContact,sendContact } from '../api/contact';
 import { Link } from 'react-router-dom';
 import { CircleAlert, CircleCheck, Send } from 'lucide-react';
 import {useUser} from '../account/context';
@@ -70,7 +70,7 @@ export default function Contact() {
     setStatus('pending');
     setFeedback('');
     try {
-      await (userId?accountApi:api).contact(
+      await sendContact(accountApi,api,
         { ...fields, submissionId: submission.current!.id },
         controller.signal
       );

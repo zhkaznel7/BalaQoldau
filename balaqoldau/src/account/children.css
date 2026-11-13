@@ -3,6 +3,7 @@
 .child-card-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr)); gap:16px; }
 .child-card-grid .account-panel { margin:0; }
 .child-card h2,.child-card p { overflow-wrap:anywhere; }
+.child-card dd { overflow-wrap:anywhere; }
 .child-actions { display:flex; flex-wrap:wrap; gap:10px; margin-block:12px; }
 .child-editor { max-width:720px; }
 .child-editor fieldset { min-width:0; border:0; padding:0; margin:0; }

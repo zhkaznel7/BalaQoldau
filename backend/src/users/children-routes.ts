@@ -28,7 +28,9 @@ export async function handleChildren(req:Request,res:Response,db:Database,token:
     const page=validate(paginationQuery,req.query),child=before.data;
     // Preferences are program categories, never inferred medical/disability/family status.
     const need=selectedSupportNeed(child.familyContext);
-    const result=await findMatches(db,{...page,age:child.age,region:child.region,...(need?{need}:{})},undefined,child.preferences);
+    const interestNeeds:Record<string,string>={education:'education-support',creativity:'creative-development',sports:'sports-activities'};
+    const preferredNeeds=(child.interests??[]).map(value=>interestNeeds[value]!);
+    const result=await findMatches(db,{...page,age:child.age,region:child.region,...(need?{need}:{})},undefined,child.preferences,preferredNeeds);
     const after=await repo.one(token,id);if(!after?.authorized)throw denied();if(!after.data)throw missing();
     if(after.data.version!==child.version)throw stale();res.json(result);return;
   }

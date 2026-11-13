@@ -5,7 +5,7 @@ import {normalizeChild} from '../../balaqoldau/src/account/children.ts';
 const value={nickname:null,age:0,region:'test-region',preferences:[]};
 test('child profiles accept only bounded minimal fields, never sensitive or ownership fields',()=>{
   assert.deepEqual(childInput.parse(value),value);
-  for(const extra of [{age:-1},{age:18},{age:1.5},{age:'6'},{region:"' OR true--"},{preferences:['a','a']},{preferences:Array.from({length:11},(_,i)=>'c-'+i)},{nickname:'123456789012'},{nickname:'x\nsecret'},{nickname:'x'.repeat(31)},{userId:'x'},{iin:'x'},{birthDate:'2020-01-01'},{disability:true},{medicalDiagnosis:'x'},{fullName:'x'}])assert.equal(childInput.safeParse({...value,...extra}).success,false);
+  for(const extra of [{age:-1},{age:18},{age:1.5},{age:'6'},{region:"' OR true--"},{preferences:['a','a']},{preferences:Array.from({length:11},(_,i)=>'c-'+i)},{nickname:'123456789012'},{nickname:'x\nsecret'},{nickname:'x'.repeat(31)},{userId:'x'},{iin:'x'},{birthDate:'2020-01-01'},{disability:true},{medicalDiagnosis:'x'},{fullName:'123456789012'}])assert.equal(childInput.safeParse({...value,...extra}).success,false);
 });
 test('child edits require a revision; deletion requires explicit confirmation',()=>{
   assert.equal(childUpdate.safeParse({...value,version:1}).success,true);

@@ -45,6 +45,7 @@ test('both inboxes: private replies, delivery truthfulness, replay protection an
    }
   });
   await t.test('account delivery preserves statuses, stores author/time and never sends email; replay is idempotent',async()=>{
+   mailFails=true; // A broken email service cannot block in-app delivery.
    for(const [kind,target,role]of [['contact-messages',id,'admin'],['reports',reportId,'reviewer']]){
     const path='/admin/'+kind+'/'+target+'/replies',input={submissionId:randomUUID(),text:"TEST <script>not HTML</script> ' OR 1=1 --"};
     let r=await call(path,role,'POST',input);assert.equal(r.status,201);const reply=(await r.json()).data;
@@ -54,6 +55,7 @@ test('both inboxes: private replies, delivery truthfulness, replay protection an
     const history=(await(await call(path)).json()).data;assert.equal(history.length,1);assert.equal(history[0].text,input.text);
    }
    assert.equal(deliveries,0);
+   mailFails=false;
    assert.equal((await db.query('SELECT status FROM balaqoldau.contact_messages WHERE id=$1',[id])).rows[0].status,'unread');
    assert.equal((await db.query('SELECT status FROM balaqoldau.program_reports WHERE id=$1',[reportId])).rows[0].status,'open');
    assert.equal((await call('/auth/messages','none')).status,401);
@@ -87,6 +89,15 @@ test('both inboxes: private replies, delivery truthfulness, replay protection an
     const response=await fetch('http://127.0.0.1:'+app.address().port+'/api/admin/contact-messages/'+target+'/replies',{method:'POST',headers:{Origin:origin,Cookie:'balaqoldau_admin='+actors.admin.token,'X-CSRF-Token':actors.admin.csrf,'Content-Type':'application/json'},body:JSON.stringify({submissionId:randomUUID(),text:'TEST no service'})});
     assert.equal(response.status,201);assert.equal((await response.json()).data.deliveryStatus,'saved_not_delivered');
    }finally{app.closeAllConnections();await new Promise(resolve=>app.close(resolve));}
+  });
+  await t.test('account ownership, not email outcome, controls inbox; matching anonymous email never grants ownership',async()=>{
+   const original=(await db.query('SELECT status FROM balaqoldau.contact_messages WHERE id=$1',[id])).rows[0].status;
+   await db.query("INSERT INTO balaqoldau.inbox_replies(contact_id,admin_id,submission_id,body,delivery_status) VALUES($1,$2,$3,'TEST legacy mail failure','saved_not_delivered')",[id,actors.admin.id,randomUUID()]);
+   const anon=(await db.query("INSERT INTO balaqoldau.contact_messages(sender_name,email,message) VALUES('TEST',$1,'TEST same email, no ownership') RETURNING id",[actors.parent.id+'@example.com'])).rows[0].id;
+   const response=await call('/admin/contact-messages/'+anon+'/replies','admin','POST',{submissionId:randomUUID(),text:'TEST anonymous, never associate'});assert.equal(response.status,201);
+   const own=(await(await call('/auth/messages','parent')).json()).data;assert.equal(own.length,3);assert.ok(own.some(r=>r.text==='TEST legacy mail failure'));assert.ok(!own.some(r=>r.text==='TEST anonymous, never associate'));
+   assert.deepEqual((await(await call('/auth/messages','other')).json()).data,[]);
+   assert.equal((await db.query('SELECT status FROM balaqoldau.contact_messages WHERE id=$1',[id])).rows[0].status,original);
   });
  }finally{if(server){server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}await db.query('ROLLBACK');db.release();await pool.end();}
 });

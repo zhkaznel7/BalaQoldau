@@ -125,3 +125,11 @@ Production grants (operator action only; no roles changed locally): runtime need
 
 Safe local checks: `node --env-file=backend/.env --test backend/tests/users/replies.test.mjs`; browser: `node --env-file=backend/.env balaqoldau/tests/replies-browser.mjs` (build both projects first). The helper verifies `balaqoldau_dev` before migrations; test fixtures roll back. Never use an unrelated database or a real email adapter in automated tests.
 
+### Association and inbox reliability fix
+
+The contact UI now resolves the server session immediately before submitting, instead of choosing a route from the provider's possibly pending/stale snapshot. Authenticated writes still use the same credentialed CSRF endpoint and derive ownership from the server session. Network errors, 401/403, unknown 404, 429 and 5xx do **not** silently fall back to anonymous submission. A confirmed anonymous session can use the public endpoint. If user authentication is explicitly disabled, only `GET /api/auth/session` returns the dedicated 404 `AUTH_DISABLED` marker; all authentication routes remain disabled. This narrow marker preserves anonymous contact functionality when the account feature is off, without treating a generic unavailable session as anonymous.
+
+In-app visibility is determined by the parent submission's `user_id`, independently of email status. A failed/unconfigured mail adapter cannot block a linked account's replies. Inbox refreshes on foreground return and offers explicit refresh; a page that became empty through retention is distinguished from a genuinely empty account and allows navigation back.
+
+Historical rows with NULL user_id remain anonymous. The verified local contacts predate migration 017; no ownership provenance exists for these rows. Do not backfill by matching editable contact email to an account (account email alone is not proof). Historical recovery requires a separately authorized, evidence-based ownership review; no recovery/backfill endpoint or automatic reassignment is implemented here. No contact/reply/history timestamps or processing statuses are rewritten by this fix.
+

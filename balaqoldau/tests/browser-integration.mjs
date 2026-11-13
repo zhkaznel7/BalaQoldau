@@ -9,6 +9,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { contrastRatio, inspectAccessibility } from './helpers/accessibility.mjs';
 import { serveBuiltSite } from './helpers/built-site.mjs';
+import {tr} from '../src/i18n/ui.ts';
+import {randomUUID} from 'node:crypto';
 
 const cwd = fileURLToPath(new URL('../', import.meta.url));
 const backend = fileURLToPath(new URL('../../backend/', import.meta.url));
@@ -122,7 +124,8 @@ try {
     assert.equal((await fetch(origin + '/api/health')).status, 200);
     check('built dist serves SPA routes and API without Vite; source/env files are unavailable');
   }
-  const real = await fetch(origin + '/api/programs');
+  const emptyQuery='qa-no-results-'+randomUUID();
+  const real = await fetch(origin + '/api/programs?q='+emptyQuery);
   assert.equal(real.status, 200); assert.deepEqual((await real.json()).data, []);
   const profile = path.join(cwd, 'node_modules/.cache/stage5-chrome-' + Date.now());
   await mkdir(profile, { recursive: true });
@@ -159,7 +162,7 @@ try {
     new PerformanceObserver(list => { window.__qaPerformance.longTasks += list.getEntries().length; }).observe({type:'longtask',buffered:true});
   ` });
   await send('Fetch.enable', { patterns: [{ urlPattern: origin + '/api/*', requestStage: 'Request' }] });
-  await navigate('/results');
+  await navigate('/results?q='+emptyQuery);
   await until('!!document.querySelector(".empty-results")');
   assert.match(await evaluate('document.querySelector(".empty-results").textContent'), /Қазір бұл санатта бағдарламалар жоқ/);
   assert.equal(await evaluate('document.querySelectorAll(".request-error").length'), 0);
@@ -170,6 +173,34 @@ try {
   await until('!!document.querySelector(".hero-finder [name=q]")');
   await until('document.querySelector(".hero-family-illustration")?.complete');
   assert.equal(await evaluate('document.querySelector(".hero-family-illustration").naturalWidth>0'), true);
+  for(const language of ['kk','ru']){
+    await navigate('/?lang='+language);await until('!!document.querySelector("#about-heading")');
+    assert.equal(await evaluate('document.querySelector("#about-heading").textContent'),tr('m508',{},language));
+    assert.equal(await evaluate('document.querySelectorAll(".about-grid article").length'),4);
+    assert.equal(await evaluate('document.querySelectorAll(".service-directions>a").length'),4);
+    assert.equal(await evaluate('document.querySelectorAll(".portal-help").length'),0);
+    assert.equal(await evaluate('document.querySelectorAll(".platform-notice,.about-disclaimer").length'),0);
+    assert.equal(await evaluate('document.querySelector(".header").getBoundingClientRect().top'),0);
+    assert.equal(await evaluate('document.querySelectorAll("#primary-navigation a").length'),4);
+    assert.equal(await evaluate('document.querySelectorAll("#primary-navigation a[href*=\'#how\']").length'),0);
+    assert.equal(await evaluate('document.querySelectorAll("#how ol li").length'),3);
+    assert.equal(await evaluate(`document.querySelectorAll('.portal-about a[href="/contact"]').length`),1);
+    assert.equal(await evaluate('document.querySelector("#footer-contact-heading").textContent'),tr('m526',{},language));
+    assert.equal(await evaluate('document.querySelectorAll("footer a[href=\'/find\'],footer a[href=\'/favorites\']").length'),0);
+    assert.equal(await evaluate('document.querySelectorAll(".footer-contacts svg[aria-hidden=true]").length'),2);
+    assert.equal(await evaluate('document.querySelectorAll(".footer-placeholder").length'),2);
+    assert.equal(await evaluate('document.querySelectorAll("footer a[href^=\'tel:\'],footer a[href^=\'mailto:\']").length'),0);
+    assert.equal(await evaluate('document.querySelector(".footer-brand p").textContent'),tr('m525',{},language));
+    for(const width of [320,375,768,1024,1280]){
+      await send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<768});assert.equal(await evaluate('document.documentElement.scrollWidth<=window.innerWidth'),true);
+      if(width>=768){assert.equal(await evaluate("(()=>{const cards=[...document.querySelectorAll('.service-directions>a')].map(el=>el.getBoundingClientRect());return Math.abs(cards[0].top-cards[1].top)<2&&cards[1].left>cards[0].right&&cards[2].top>cards[0].top;})()"),true);}
+      if(width===1280){assert.equal(await evaluate("document.querySelector('.service-directions').getBoundingClientRect().width>window.innerWidth*.8&&document.querySelector('.about-grid').getBoundingClientRect().width>window.innerWidth*.8"),true);}
+      if(width>=1024){assert.equal(await evaluate("(()=>{const c=[...document.querySelector('.footer-top').children].map(el=>el.getBoundingClientRect());return c.length===3&&Math.abs(c[0].top-c[2].top)<2&&c[0].right<c[1].left&&c[1].right<c[2].left;})()"),true);}
+      if(width<=375){assert.equal(await evaluate("(()=>{const c=[...document.querySelector('.footer-top').children].map(el=>el.getBoundingClientRect());return c[1].top>c[0].bottom&&c[2].top>c[1].bottom;})()"),true);}
+    }
+  }
+  await navigate('/');await until('!!document.querySelector(".hero-finder [name=q]")');
+  check('KZ/RU about content, existing category navigation and five responsive widths');
   assert.equal(await evaluate('document.querySelectorAll(".request-error").length'), 0);
   await delay(500);
   const performanceSample = await evaluate(`({ mode: ${JSON.stringify(builtMode ? 'built-dist' : 'vite-development')}, ...window.__qaPerformance,
@@ -180,7 +211,8 @@ try {
   fixtureMode = true;
   await navigate('/');
   assert.equal(await evaluate('document.querySelectorAll(".hero #how ol li").length'), 3);
-  assert.equal(await evaluate('document.querySelectorAll(".hero .eyebrow,.service-directions svg,.category-icon").length'), 0);
+  assert.equal(await evaluate('document.querySelectorAll(".hero .eyebrow,.category-icon").length'), 0);
+  assert.equal(await evaluate('document.querySelectorAll(".service-directions svg[aria-hidden=true]").length'), 8);
   for (const width of [1440, 375]) {
     await send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: width < 760 });
     assert.equal(await evaluate(`(() => { const search=document.querySelector('.discovery-panel').getBoundingClientRect(), guide=document.querySelector('#how').getBoundingClientRect(); return innerWidth>960 ? guide.left>=search.right : guide.top>=search.bottom; })()`), true);
@@ -189,7 +221,7 @@ try {
   await navigate('/#how');
   await until('document.activeElement.id==="how"');
   await navigate('/');
-  assert.match(await evaluate('document.querySelector(".platform-notice")?.textContent || ""'), /Тәуелсіз.*Мемлекеттік.*емес/);
+      assert.equal(await evaluate('document.querySelectorAll(".platform-notice,.about-disclaimer").length'),0);
   assert.equal(await evaluate('document.querySelectorAll(".service-directions a").length'), 4);
   assert.deepEqual(await evaluate('[...document.querySelectorAll(".service-directions a")].map(link=>new URL(link.href).searchParams.get("category"))'), ['benefits', 'free-courses', 'clubs', 'grants']);
   assert.equal(await evaluate('[...document.querySelectorAll(".service-directions a")].every(link=>!new URL(link.href).searchParams.has("q"))'),true);
@@ -202,7 +234,7 @@ try {
   await until('location.pathname==="/results" && !!document.querySelector(".program-card")');
   assert.equal(await evaluate('new URLSearchParams(location.search).get("q")'), 'үйірме');
   assert.deepEqual(await evaluate('Object.fromEntries(new URLSearchParams(location.search))'), { region: 'test-region', age: '0', category: 'test-support', q: 'үйірме' });
-  check('independent-platform notice and homepage keyword search use the real API query contract');
+  check('public layout has no announcement/disclaimer blocks and keyword search preserves the API contract');
   await navigate('/');
   await evaluate('document.querySelector(".service-directions a").click()');
   await until('location.pathname==="/results" && !!document.querySelector(".program-card")');
@@ -377,7 +409,7 @@ try {
       assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'), true, `${route} at ${width}`);
       const report = await evaluate(`(${inspectAccessibility.toString()})(${contrastRatio.toString()})`);
       assert.equal(report.h1Count, 1, `${route}: one h1`); assert.equal(report.mainCount, 1); assert.equal(report.language, 'kk');
-      assert.match(await evaluate('document.querySelector(".platform-notice").textContent'), /Мемлекеттік органның ресми сайты емес/);
+      assert.equal(await evaluate('document.querySelectorAll(".platform-notice,.about-disclaimer").length'),0);
       assert.deepEqual(report.unlabelled, []); assert.deepEqual(report.failures, [], `${route} at ${width}: computed contrast`);
       auditReports.push({ route, width, ...report });
     }
