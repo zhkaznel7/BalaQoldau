@@ -67,6 +67,7 @@ async function intercept(message) {
   requests.push({ path: url.pathname, search: url.search, method: request.method, body: request.postData });
   let status = 200, body;
   if (url.pathname==='/api/auth/session') body={data:{authenticated:fixtureAuthenticated,user:fixtureAuthenticated?{id:id1,email:'test@example.com',language:'kk'}:null,csrfToken:'a'.repeat(64),resetAvailable:false}};
+  else if(url.pathname==='/api/family-categories')body=page([{id:'1',slug:'test-need',name:'TEST need'}]);
   else if(url.pathname==='/api/auth/profile')body={data:{id:id1,email:'test@example.com',language:'kk',fullName:null,location:null,savedCount:0}};
   else if (url.pathname.endsWith('/categories')) {
     if (catalogFailure) { status = 503; body = {}; }
@@ -76,7 +77,7 @@ async function intercept(message) {
     await delay(250);
     status = contactMode === 'error' ? 503 : contactMode === 'limit' ? 429 : 201;
     body = status === 201 ? { data: { id: id1 } } : {};
-  } else if (url.pathname.endsWith('/programs')) {
+  } else if ((url.pathname.endsWith('/programs')||url.pathname.endsWith('/program-matches'))) {
     const q = url.searchParams.get('q') || '';
     if (q === 'fail' || (q === 'flaky' && flaky === 0)) { status = 503; body = {}; }
     else {

@@ -271,3 +271,11 @@ footer { border-top: 1px solid var(--line); background: #f1f5f9; margin-top: 32p
   .button,.chip,.icon-button { border: 1px solid ButtonText; }
   .chip[aria-pressed=true] { outline: 2px solid Highlight; }
 }
+.matching-summary { margin-block: 12px; padding: 12px; border-left: 3px solid #075ea8; background: #f3f6fa; color: #142b47; font-size: .9rem; overflow-wrap: anywhere; }
+.matching-summary summary { cursor: pointer; margin-top: 8px; text-decoration: underline; text-underline-offset: 3px; }
+.matching-summary ul { margin: 12px 0; padding-inline-start: 20px; }
+.matching-summary li + li { margin-top: 6px; }
+.matching-summary p { font-size: .85rem; }
+.matching-check-kind { font-weight: 600; }
+.matching-not_match { border-color: #a52a2a; }
+.matching-toggle { display: flex; gap: 10px; align-items: center; margin-block: 16px; }

@@ -12,7 +12,7 @@ export interface AdminProgram extends CreateProgram {
 }
 const select = `SELECT p.id,p.slug,c.slug AS category,p.title,p.description,p.status,p.version,p.is_demo AS "isDemo",
   p.source_url AS "sourceUrl",p.source_name AS "sourceName",p.apply_url AS "applyUrl",p.verified_at AS "verifiedAt",
-  p.age_min AS "ageMin",p.age_max AS "ageMax",p.deadline::text,p.created_by AS "createdBy",p.submitted_by AS "submittedBy",
+  p.eligibility_complete AS "eligibilityComplete",p.age_min AS "ageMin",p.age_max AS "ageMax",p.deadline::text,p.created_by AS "createdBy",p.submitted_by AS "submittedBy",
   p.reviewed_by AS "reviewedBy",p.created_at AS "createdAt",p.updated_at AS "updatedAt",
   ARRAY(SELECT r.slug FROM balaqoldau.program_regions pr JOIN balaqoldau.regions r ON r.id=pr.region_id WHERE pr.program_id=p.id ORDER BY r.slug) AS regions,
   ARRAY(SELECT f.slug FROM balaqoldau.program_family_categories pf JOIN balaqoldau.family_categories f ON f.id=pf.family_category_id WHERE pf.program_id=p.id ORDER BY f.slug) AS "familyCategories"
@@ -73,9 +73,9 @@ async function log(db: Database, event: string, actor: string, id: string, permi
 export async function createAdminProgram(db: Database, actor: string, input: CreateProgram) {
   const refs = await taxonomy(db, input);
   const row = (await db.query<{ id: string }>(`INSERT INTO balaqoldau.programs(slug,category_id,title,description,is_demo,source_url,source_name,
-    apply_url,age_min,age_max,deadline,created_by,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'draft') RETURNING id`,
+    apply_url,age_min,age_max,deadline,created_by,status,eligibility_complete) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'draft',$13) RETURNING id`,
   [input.slug, refs.category, input.title, input.description, input.isDemo, input.sourceUrl, input.sourceName,
-    input.applyUrl, input.ageMin, input.ageMax, input.deadline, actor])).rows[0]!;
+    input.applyUrl, input.ageMin, input.ageMax, input.deadline, actor, input.eligibilityComplete??false])).rows[0]!;
   await links(db, row.id, refs, false);
   await log(db, 'program.created', actor, row.id, 'programs:draft:write', null, 'draft');
   return getAdminProgram(db, row.id);
@@ -87,7 +87,7 @@ export async function updateAdminProgram(db: Database, actor: { id: string; role
   const merged: CreateProgram = {
     slug: input.slug ?? current.slug, category: input.category ?? current.category,
     title: input.title ?? current.title, description: input.description ?? current.description,
-    isDemo: current.isDemo, ageMin: input.ageMin ?? current.ageMin, ageMax: input.ageMax ?? current.ageMax,
+    eligibilityComplete:input.eligibilityComplete??current.eligibilityComplete??false, isDemo: current.isDemo, ageMin: input.ageMin ?? current.ageMin, ageMax: input.ageMax ?? current.ageMax,
     sourceUrl: input.sourceUrl === undefined ? current.sourceUrl : input.sourceUrl,
     sourceName: input.sourceName === undefined ? current.sourceName : input.sourceName,
     applyUrl: input.applyUrl === undefined ? current.applyUrl : input.applyUrl,
@@ -98,8 +98,8 @@ export async function updateAdminProgram(db: Database, actor: { id: string; role
   const refs = await taxonomy(db, merged);
   await db.query(`UPDATE balaqoldau.programs SET slug=$2,category_id=$3,title=$4,description=$5,source_url=$6,source_name=$7,
     apply_url=$8,age_min=$9,age_max=$10,deadline=$11,submitted_by=NULL,reviewed_by=NULL,verified_at=NULL,
-    updated_at=clock_timestamp(),version=version+1 WHERE id=$1`, [id, merged.slug, refs.category, merged.title, merged.description,
-    merged.sourceUrl, merged.sourceName, merged.applyUrl, merged.ageMin, merged.ageMax, merged.deadline]);
+    eligibility_complete=$12,updated_at=clock_timestamp(),version=version+1 WHERE id=$1`, [id, merged.slug, refs.category, merged.title, merged.description,
+    merged.sourceUrl, merged.sourceName, merged.applyUrl, merged.ageMin, merged.ageMax, merged.deadline, merged.eligibilityComplete]);
   await links(db, id, refs, true);
   await log(db, 'program.updated', actor.id, id, 'programs:draft:write', 'draft', 'draft');
   return getAdminProgram(db, id);

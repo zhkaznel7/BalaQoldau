@@ -1,4 +1,4 @@
-const keys = ['category', 'region', 'age', 'q', 'page', 'limit'];
+const keys = ['category', 'region', 'age', 'q', 'page', 'limit','need','matching'];
 export function updateFilters(current: URLSearchParams, changes: Record<string, string>): URLSearchParams {
   const next = new URLSearchParams();
   for (const [key, value] of current) if (keys.includes(key) && value !== '') next.append(key, value);

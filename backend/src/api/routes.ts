@@ -5,6 +5,8 @@ import type { Database } from './repository.ts';
 import { createRepository } from './repository.ts';
 import { contactBody, emptyInput, paginationQuery, programParams, programQuery, validate } from './schemas.ts';
 import { HttpError } from '../middleware/errors.ts';
+import {matchingQuery,matchingDetailsQuery} from './schemas.ts';
+import {findMatches} from '../matching/repository.ts';
 
 export function apiRouter(database?: Database) {
   const router = Router();
@@ -20,6 +22,16 @@ export function apiRouter(database?: Database) {
     const filters = validate(programQuery, request.query);
     response.json(await repository().programs(filters));
   }).all(methods('GET, HEAD, OPTIONS'));
+  router.route('/program-matches').get(async(request,response)=>{
+    const filters=validate(matchingQuery,request.query);repository();
+    response.setHeader('Cache-Control','no-store');response.json(await findMatches(database!,filters));
+  }).all(methods('GET, HEAD, OPTIONS'));
+  router.route('/program-matches/:id').get(async(request,response)=>{
+    const {id}=validate(programParams,request.params),input=validate(matchingDetailsQuery,request.query);repository();
+    const result=await findMatches(database!,{...input,page:1,limit:1},id);
+    if(!result.data[0])throw new HttpError(404,'NOT_FOUND','Program not found.');
+    response.setHeader('Cache-Control','no-store');response.json({data:result.data[0]});
+  }).all(methods('GET, HEAD, OPTIONS'));
   router.route('/programs/:id').get(async (request, response) => {
     const { id } = validate(programParams, request.params);
     validate(emptyInput, request.query);
@@ -33,6 +45,9 @@ export function apiRouter(database?: Database) {
       response.json(await repository()[path](pagination));
     }).all(methods('GET, HEAD, OPTIONS'));
   }
+  router.route('/family-categories').get(async(request,response)=>{
+    const pagination=validate(paginationQuery,request.query);response.json(await repository().familyCategories(pagination));
+  }).all(methods('GET, HEAD, OPTIONS'));
   const contactLimit = rateLimit({
     windowMs: 15 * 60 * 1000, limit: 5, standardHeaders: 'draft-8', legacyHeaders: false,
     handler: (_request, _response, next) => next(new HttpError(429, 'RATE_LIMITED', 'Too many requests.')),

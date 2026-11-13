@@ -5,13 +5,13 @@ export type Action = 'submit' | 'approve' | 'reject' | 'publish' | 'unpublish';
 export interface Access { id: string; role: Role; permissions: string[] }
 export interface Session { authenticated: boolean; admin: { id: string } | null; csrfToken: string }
 export interface Program {
-  id: string; slug: string; category: string; title: string; description: string; status: Status; version: number; isDemo: boolean;
+  eligibilityComplete?:boolean; id: string; slug: string; category: string; title: string; description: string; status: Status; version: number; isDemo: boolean;
   sourceUrl: string | null; sourceName: string | null; applyUrl: string | null; deadline: string | null; verifiedAt: string | null;
   ageMin: number; ageMax: number; regions: string[]; familyCategories: string[];
   createdBy: string | null; submittedBy: string | null; reviewedBy: string | null;
 }
 export type ProgramInput = Pick<Program, 'slug' | 'category' | 'title' | 'description' | 'isDemo' | 'sourceUrl' | 'sourceName'
-  | 'applyUrl' | 'deadline' | 'ageMin' | 'ageMax' | 'regions' | 'familyCategories'>;
+  | 'eligibilityComplete' | 'applyUrl' | 'deadline' | 'ageMin' | 'ageMax' | 'regions' | 'familyCategories'>;
 export interface Taxonomy { categories: { slug: string; name: string }[]; regions: { slug: string; name: string }[]; familyCategories: { slug: string; name: string }[] }
 export const statuses: Record<Status, string> = { draft: tr("m133"), review: tr("m134"), verified: tr("m135"), published: tr("m136") };
 export const roles: Record<Role, string> = { editor: tr("m137"), reviewer: tr("m138"), admin: tr("m139") };

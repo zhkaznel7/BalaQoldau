@@ -1320,3 +1320,64 @@ existing real smoke performs public GET requests against balaqoldau_dev only.
 Real-auth mutation browser suites were not run because they write DB fixtures.
 Browser-native input dialogs follow browser locale; verified program translations
 and manual assistive-technology testing remain separate work.
+
+
+## Stage 14 - Smart Search and Explainable Matching (2026-11-13)
+
+Implemented deterministic backend MATCH/POSSIBLE/NOT_MATCH evaluation with allowlisted
+reason codes; missing or incomplete eligibility never establishes eligibility. Reuses
+age, region, family-category, source verification and deadline fields. Additive 009
+adds eligibility_complete=false and extends the published/non-DEMO security-barrier
+view. Existing records are not certified or published. Draft-only completeness edits
+reuse Editor/Admin ownership, CSRF/version protections, audit events and the existing
+Reviewer approval/Admin publication workflow. No roles or credentials were changed.
+Production's restricted admin runtime needs an authorized operator to grant INSERT /
+UPDATE on the new column before enabling this version; the safety gate fails closed
+until that is done. No production grants were executed.
+
+New anonymous GET /api/program-matches, /api/program-matches/:uuid and
+/api/family-categories validate all inputs. Parameterized SQL ranks the complete
+candidate set before bounded pagination. Category and keyword narrow candidates;
+age/region/need compare and rank in the explicitly explained matching mode, including
+mismatches. Legacy /api/programs hard filters remain unchanged. Stable UUID ties,
+inclusive age/deadline boundaries, Kazakhstan calendar date, published-only visibility
+and generic safe errors are tested. No account/profile data is read or stored for
+matching. Inputs are visible in URLs; ingress must omit query strings from logs.
+
+Frontend /find, /results and program details now support comparison, KZ/RU indicators,
+satisfied/failed/missing explanations and official-source guidance. Saved programs,
+anonymous browsing, existing headers and localization remain working. Admin form adds
+one reviewed-completeness checkbox. Unsupported official conditions are not inferred;
+leave completeness false whenever a source cannot be fully represented. New matching
+translations extend the shared dictionary from 305 to 334 paired entries.
+
+Safety: verified exact local balaqoldau_dev identity before migration. Before: two
+program records, zero published, zero verified. Applied one additive migration;
+second migration run returned zero. All integration fixture writes were rolled back;
+no existing accounts/programs were deleted or overwritten, and no real catalog was
+populated. balaqoldau_db was never accessed. PostgreSQL pgpass works but the pg driver
+reports a future pg@9 pgpass deprecation warning; dependencies were not upgraded.
+
+Verification: backend 136/136; frontend 52/52; dev rollback integration 29/29, including
+new matching and admin review/RBAC tests plus existing auth/profile/saved regressions;
+localization/matching browser 61/61; existing built browser regression 29/29; release
+policy tests 15/15 PASS. Both TypeScript checks, lint and production builds PASS;
+source/asset/append-only migration and artifact policies PASS. SQL rank order agrees
+with the pure engine across boundaries, missing and conflicting inputs.
+
+Audit initially failed closed because the sandbox could not obtain registry reports;
+network-enabled rerun succeeded: backend all/production zero findings, frontend all
+10 pre-existing moderate findings, frontend production zero; high/critical production
+gate PASS. No dependencies or lockfiles changed. Existing local health/new matching
+endpoint and frontend /find each returned HTTP 200.
+
+Changed backend matching engine/repository, public API schema/routes/select, admin
+completeness schema/repository/least-privilege column checks, migration 009, unit and
+rollback integration tests. Changed frontend App, API/matching/navigation/catalog,
+MatchingSummary/ProgramCard, admin form/types/transport, KZ/RU dictionaries, styles and
+unit/browser fixtures. Updated README files, PROGRAM_API.md and docs/MATCHING.md.
+Known limitations: zero real published records, editorial completeness requires human
+source review, city filter only existing region taxonomy, no unsupported income/legal
+rule inference, production-volume performance/manual screen-reader testing not claimed.
+Manual URLs and startup/restart commands are in docs/MATCHING.md. No commit/push/deploy,
+main changes, new child profiles, external government integrations or paid services.

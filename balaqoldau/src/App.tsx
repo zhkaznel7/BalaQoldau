@@ -5,7 +5,7 @@ import type { FormEvent, ReactNode } from 'react';
 import { BrowserRouter, Link, NavLink, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowRight, ArrowUpRight, Bookmark, Check, ChevronDown, Heart, MapPin, Menu, Search, Info, Users, X, SlidersHorizontal, ArrowLeft, FileText, ExternalLink } from 'lucide-react';
 import { ApiError, isProgramId } from './api/client';
-import { loadPrograms, loadProgram, loadFavorites } from './api/service';
+import { loadPrograms, loadFavorites, api } from './api/service';
 import { resultsUrl, updateFilters } from './api/navigation';
 import { useCatalog } from './hooks/useCatalog';
 import { useResource } from './hooks/useResource';
@@ -22,6 +22,8 @@ import { SaveProgramButton, SavedProgramsScope } from './account/SavedProgramsSc
 import LanguageSwitcher, { LanguageNavigation } from './components/LanguageSwitcher';
 import { carryLanguage, withoutLanguage } from './components/language';
 import ContentLanguageNotice from './i18n/ContentLanguageNotice';
+import MatchingSummary from './components/MatchingSummary';
+import {matchingContext} from './api/matching';
 import './refinements.css';
 const FavoritesContext = createContext<{
     ids: string[];
@@ -166,7 +168,7 @@ function Find() {
     const [params] = useSearchParams();
     const navigate = useNavigate();
     const catalog = useCatalog();
-    const [filters, setFilters] = useState({ region: params.get('region') || '', age: params.get('age') || '', category: params.get('category') || '', q: params.get('q') || '' });
+    const [filters, setFilters] = useState({ region: params.get('region') || '', age: params.get('age') || '', category: params.get('category') || '', q: params.get('q') || '',need:params.get('need')||'',matching:'1' });
     function submit(event: FormEvent) { event.preventDefault(); navigate(resultsUrl(filters)); }
     const disabled = catalog.loading || Boolean(catalog.error);
     return <div className="container inner-page">
@@ -176,7 +178,7 @@ function Find() {
         <SelectField label={tr("m181")} name="region" value={filters.region} options={catalog.regions} disabled={disabled} placeholder={tr("m182")} onChange={region => setFilters({ ...filters, region })}/>
         <label className="field"><span>{""+tr("m183")+""}</span><input type="number" name="age" min="0" max="17" step="1" placeholder={tr("m184")} value={filters.age} onChange={event => setFilters({ ...filters, age: event.target.value })}/></label>
         <SelectField label={tr("m185")} name="category" value={filters.category} options={catalog.categories} disabled={disabled} placeholder={tr("m186")} onChange={category => setFilters({ ...filters, category })}/>
-        <label className="field"><span>{""+tr("m187")+""}</span><input name="q" type="search" maxLength={200} value={filters.q} onChange={event => setFilters({ ...filters, q: event.target.value })}/></label>
+        <SelectField label={tr("m327")} name="need" value={filters.need} options={catalog.needs} disabled={disabled} placeholder={tr("m328")} onChange={need=>setFilters({...filters,need})}/><p className="field-hint">{tr("m330")}</p><label className="field"><span>{""+tr("m187")+""}</span><input name="q" type="search" maxLength={200} value={filters.q} onChange={event => setFilters({ ...filters, q: event.target.value })}/></label>
         <button className="button primary" type="submit">{""+tr("m188")+" "}<ArrowRight aria-hidden="true" size={19}/></button>
         <p className="form-privacy">{""+tr("m189")+""}</p>
       </form><aside className="search-aside"><Info aria-hidden="true" size={28}/><h2>{""+tr("m190")+""}</h2>
@@ -208,7 +210,7 @@ function SearchResults() {
     function categoryFilter(category: string) { setParams(updateFilters(params, { category })); }
     return <div className="container inner-page">
       <PageIntro label={tr("m177")} title={tr("m195")} text={tr("m196")}/>
-      <CatalogStatus/><DiscoverySearch key={query}/>
+      <CatalogStatus/><DiscoverySearch key={query}/><label className="matching-toggle"><input type="checkbox" checked={params.get('matching')==='1'} onChange={e=>setParams(updateFilters(params,{matching:e.target.checked?'1':'',need:''}))}/>{tr("m329")}</label>{params.get('matching')==='1'&&<><p className="field-hint">{tr("m330")}</p><SelectField label={tr("m327")} name="need" value={params.get('need')||''} options={catalog.needs} disabled={catalog.loading||!!catalog.error} placeholder={tr("m328")} onChange={need=>setParams(updateFilters(params,{need}))}/></>}
       <div className="results-toolbar"><div className="filter-chips" aria-label={tr("m197")}>
         <button className={!params.get('category') ? 'chip selected' : 'chip'} aria-pressed={!params.get('category')} onClick={() => categoryFilter('')}>{""+tr("m186")+""}</button>
         {catalog.categories.map(item => <button key={item.id} className={params.get('category') === item.slug ? 'chip selected' : 'chip'} aria-pressed={params.get('category') === item.slug} onClick={() => categoryFilter(item.slug)}>{item.name}</button>)}
@@ -230,7 +232,10 @@ function Details() {
 }
 function ProgramDetails({ id }: { id: string }) {
   useUi();
-    const state = useResource(id, loadProgram);
+    const [detailParams]=useSearchParams();
+    const detailQuery=matchingContext(detailParams);
+    const loadDetail=useCallback((_key:string,signal:AbortSignal)=>api.match(id,detailQuery,signal),[id,detailQuery]);
+    const state = useResource(id+'?'+detailQuery, loadDetail);
     const catalog = useCatalog();
     const location = useLocation();
     const routeState: unknown = location.state;
@@ -248,7 +253,7 @@ function ProgramDetails({ id }: { id: string }) {
       <div className="details-heading"><div><span className="program-category">{category}</span><h1>{p.title}</h1>
         <div className="program-meta"><span><MapPin aria-hidden="true" size={17}/>{regionNames.join(', ') || tr("m214")}</span><span><Users aria-hidden="true" size={17}/>{p.ageMin}–{p.ageMax}{" "+tr("m215")+""}</span></div>
       </div><SavedProgramsScope ids={[p.id]}><SaveProgramButton id={p.id} title={p.title}/></SavedProgramsScope></div>
-      <ContentLanguageNotice/><div className="details-layout"><div className="details-content">
+      <ContentLanguageNotice/>{p.matching&&<MatchingSummary matching={p.matching} expanded/>}<div className="details-layout"><div className="details-content">
         <section><h2>{""+tr("m216")+""}</h2><p>{p.description}</p></section>
         <section><h2>{""+tr("m217")+""}</h2><p>{""+tr("m218")+" "}{p.ageMin}–{p.ageMax}{" "+tr("m219")+""}</p>{p.familyCategories.length > 0 && <p>{""+tr("m220")+" "}{p.familyCategories.join(', ')}.</p>}<p>{""+tr("m221")+""}</p></section>
         <section><h2>{""+tr("m222")+""}</h2><a href={p.sourceUrl} target="_blank" rel="noopener noreferrer" aria-describedby="external-link-note">{p.sourceName} <ExternalLink aria-hidden="true" size={16}/></a><p>{""+tr("m223")+" "}{new Date(p.verifiedAt).toLocaleDateString(dateLocale())}</p>{p.deadline && <p>{""+tr("m224")+" "}{p.deadline}</p>}</section>

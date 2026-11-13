@@ -15,7 +15,7 @@ const fields = z.strictObject({
   slug: z.string().max(120).regex(/^[a-z0-9]+(-[a-z0-9]+)*$/), category: slug,
   title: text(240), description: text(10000), sourceUrl: url, sourceName: text(200).nullable(),
   applyUrl: url, ageMin: z.number().int().min(0).max(17), ageMax: z.number().int().min(0).max(17),
-  deadline: z.iso.date().nullable(), regions: slugs, familyCategories: slugs,
+  deadline: z.iso.date().nullable(), regions: slugs, familyCategories: slugs, eligibilityComplete:z.boolean().optional(),
 });
 export const createProgramInput = fields.extend({ isDemo: z.boolean().default(false),
   sourceUrl: url.default(null), sourceName: text(200).nullable().default(null), applyUrl: url.default(null),

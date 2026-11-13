@@ -1,6 +1,9 @@
 import {tr} from '../i18n/ui.ts';
+import {matchCodes,matchingContext} from './matching.ts';
+import type {Matching} from './matching.ts';
 export interface Taxonomy { id: string; slug: string; name: string }
 export interface Program {
+  matching?:Matching;
   id: string; slug: string; category: string; title: string; description: string;
   sourceUrl: string; sourceName: string; verifiedAt: string; ageMin: number; ageMax: number;
   deadline: string | null; applyUrl: string | null; isDemo: false;
@@ -35,6 +38,15 @@ function https(value: unknown): string {
 }
 export function parseProgram(value: unknown): Program {
   const p = record(value);
+  let matching:Matching|undefined;
+  if(p.matching!==undefined){
+    const m=record(p.matching);
+    if(!['MATCH','POSSIBLE','NOT_MATCH'].includes(String(m.status))||!Array.isArray(m.checks)||!m.checks.length||m.checks.length>13)return invalid();
+    const checks=m.checks.map(value=>{const c=record(value);if(!matchCodes.includes(c.code as typeof matchCodes[number])||!['satisfied','not_satisfied','missing'].includes(String(c.result)))return invalid();return c as unknown as Matching['checks'][number];});
+    const expected=checks.some(c=>c.result==='not_satisfied')?'NOT_MATCH':checks.some(c=>c.result==='missing')?'POSSIBLE':'MATCH';
+    if(expected!==m.status||new Set(checks.map(c=>c.code)).size!==checks.length)return invalid();
+    matching={status:m.status as Matching['status'],checks};
+  }
   if (p.isDemo !== false || (p.status !== undefined && p.status !== 'published')) return invalid();
   const id = text(p.id);
   const ageMin = integer(p.ageMin), ageMax = integer(p.ageMax);
@@ -42,7 +54,7 @@ export function parseProgram(value: unknown): Program {
   return { id, slug: text(p.slug), category: text(p.category), title: text(p.title), description: text(p.description),
     sourceUrl: https(p.sourceUrl), sourceName: text(p.sourceName), verifiedAt: text(p.verifiedAt), ageMin, ageMax,
     deadline: p.deadline === null ? null : text(p.deadline), applyUrl: p.applyUrl === null ? null : https(p.applyUrl),
-    isDemo: false, regions: strings(p.regions), familyCategories: strings(p.familyCategories) };
+    isDemo: false, regions: strings(p.regions), familyCategories: strings(p.familyCategories),...(matching?{matching}:{}) };
 }
 function parseTaxonomy(value: unknown): Taxonomy {
   const item = record(value);
@@ -84,6 +96,14 @@ export function createApi(baseUrl = '/api', fetcher: typeof fetch = globalThis.f
     } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
   }
   return {
+    matches(query:string,signal?:AbortSignal){
+      const params=new URLSearchParams(query);for(const key of [...params.keys()])if(!['category','region','age','need','q','page','limit'].includes(key))params.delete(key);
+      return request('/program-matches?'+params.toString(),value=>parsePage(value,parseProgram),signal);
+    },
+    match(id:string,query:string,signal?:AbortSignal){
+      if(!isProgramId(id))return Promise.reject(new ApiError(404));
+      return request('/program-matches/'+encodeURIComponent(id)+'?'+matchingContext(new URLSearchParams(query)),value=>parseProgram(record(value).data),signal);
+    },
     programs(query: string, signal?: AbortSignal) {
       const params = new URLSearchParams();
       for (const [key, value] of new URLSearchParams(query)) {
@@ -95,7 +115,7 @@ export function createApi(baseUrl = '/api', fetcher: typeof fetch = globalThis.f
       if (!isProgramId(id)) return Promise.reject(new ApiError(404));
       return request('/programs/' + encodeURIComponent(id), value => parseProgram(record(value).data), signal);
     },
-    async taxonomy(kind: 'categories' | 'regions', signal?: AbortSignal): Promise<Taxonomy[]> {
+    async taxonomy(kind: 'categories' | 'regions' | 'family-categories', signal?: AbortSignal): Promise<Taxonomy[]> {
       const result: Taxonomy[] = [];
       for (let page = 1; page <= 10000; page++) {
         const response = await request(`/${kind}?limit=50&page=${page}`, value => parsePage(value, parseTaxonomy), signal);

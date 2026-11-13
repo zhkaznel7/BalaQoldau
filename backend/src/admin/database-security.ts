@@ -46,13 +46,13 @@ export const adminPrivilegeQuery = `SELECT
       AND has_table_privilege('balaqoldau.programs','SELECT')
       AND NOT has_table_privilege('balaqoldau.programs','DELETE,TRUNCATE,TRIGGER')
       AND NOT EXISTS(SELECT 1 FROM pg_attribute a WHERE a.attrelid='balaqoldau.programs'::regclass AND a.attnum>0 AND NOT a.attisdropped
-        AND ((a.attname NOT IN ('slug','category_id','title','description','is_demo','source_url','source_name','apply_url','age_min','age_max','deadline','created_by','status')
+        AND ((a.attname NOT IN ('slug','category_id','title','description','is_demo','source_url','source_name','apply_url','age_min','age_max','deadline','created_by','status','eligibility_complete')
           AND has_column_privilege(a.attrelid,a.attnum,'INSERT'))
           OR (a.attname NOT IN ('slug','category_id','title','description','source_url','source_name','apply_url','age_min','age_max','deadline',
-            'submitted_by','reviewed_by','verified_at','updated_at','version','status') AND has_column_privilege(a.attrelid,a.attnum,'UPDATE'))))
-      AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['slug','category_id','title','description','is_demo','source_url','source_name','apply_url','age_min','age_max','deadline','created_by','status']) AS c(name)
+            'submitted_by','reviewed_by','verified_at','updated_at','version','status','eligibility_complete') AND has_column_privilege(a.attrelid,a.attnum,'UPDATE'))))
+      AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['slug','category_id','title','description','is_demo','source_url','source_name','apply_url','age_min','age_max','deadline','created_by','status','eligibility_complete']) AS c(name)
         WHERE NOT has_column_privilege('balaqoldau.programs',c.name,'INSERT'))
-      AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['slug','category_id','title','description','source_url','source_name','apply_url','age_min','age_max','deadline','submitted_by','reviewed_by','verified_at','updated_at','version','status']) AS c(name)
+      AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['slug','category_id','title','description','source_url','source_name','apply_url','age_min','age_max','deadline','submitted_by','reviewed_by','verified_at','updated_at','version','status','eligibility_complete']) AS c(name)
         WHERE NOT has_column_privilege('balaqoldau.programs',c.name,'UPDATE'))
       AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['balaqoldau.categories','balaqoldau.regions','balaqoldau.family_categories']) AS t(name)
         WHERE NOT has_table_privilege(t.name,'SELECT'))

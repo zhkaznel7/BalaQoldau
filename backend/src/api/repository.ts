@@ -2,17 +2,17 @@ import type { Pool } from 'pg';
 import type { ContactInput, Pagination, ProgramFilters } from './schemas.ts';
 
 export type Database = Pick<Pool, 'query'>;
-interface Program {
+export interface Program {
   id: string; slug: string; category: string; title: string; description: string;
   sourceUrl: string; sourceName: string; verifiedAt: string; ageMin: number; ageMax: number;
   deadline: string | null; applyUrl: string | null; isDemo: false;
-  regions: string[]; familyCategories: string[];
+  regions: string[]; familyCategories: string[]; eligibilityComplete?:boolean;
 }
 interface Taxonomy { id: string; slug: string; name: string }
 export const programSelect = `SELECT p.id,p.slug,c.slug AS category,p.title,p.description,
   p.source_url AS "sourceUrl",p.source_name AS "sourceName",p.verified_at AS "verifiedAt",
   p.age_min AS "ageMin",p.age_max AS "ageMax",p.deadline::text AS deadline,
-  p.apply_url AS "applyUrl",false AS "isDemo",
+  p.apply_url AS "applyUrl",false AS "isDemo",p.eligibility_complete AS "eligibilityComplete",
   ARRAY(SELECT r.slug FROM balaqoldau.program_regions pr JOIN balaqoldau.regions r ON r.id=pr.region_id
     WHERE pr.program_id=p.id ORDER BY r.slug) AS regions,
   ARRAY(SELECT f.slug FROM balaqoldau.program_family_categories pf JOIN balaqoldau.family_categories f ON f.id=pf.family_category_id
@@ -56,6 +56,11 @@ export function createRepository(db: Database) {
       return paged<Taxonomy>(db, `SELECT r.id::text AS id,r.slug,r.name FROM balaqoldau.regions r
         WHERE EXISTS (SELECT 1 FROM balaqoldau.program_regions pr JOIN balaqoldau.published_programs p
           ON p.id=pr.program_id WHERE pr.region_id=r.id)`, [], pagination);
+    },
+    familyCategories(pagination:Pagination){
+      return paged<Taxonomy>(db,`SELECT f.id::text AS id,f.slug,f.name FROM balaqoldau.family_categories f
+        WHERE EXISTS(SELECT 1 FROM balaqoldau.program_family_categories pf JOIN balaqoldau.published_programs p
+          ON p.id=pf.program_id WHERE pf.family_category_id=f.id)`,[],pagination);
     },
     async contact(input: ContactInput) {
       const result = await db.query<{ id: string }>(`INSERT INTO balaqoldau.contact_messages(sender_name,email,message)

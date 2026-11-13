@@ -1,5 +1,10 @@
 # BalaQoldau backend — Stage 10.1
 
+Stage 14: [public matching API and deterministic eligibility rules](../docs/MATCHING.md).
+Apply additive migration 009 before starting the updated API. Existing programs are
+not automatically certified or published. `npm run test:user-db` uses verified local
+`balaqoldau_dev` with rollback fixtures (isolated CI database in GitHub Actions).
+
 ## Stage 10.1 — Admin Program CRUD
 
 [API fields, workflow, RBAC, migrations/grants and testing](PROGRAM_API.md).

@@ -7,6 +7,7 @@ import {tr} from '../src/i18n/ui.ts';
 import {authText} from '../src/account/translations.ts';
 import {kk} from '../src/i18n/kk.ts';
 import {ru} from '../src/i18n/ru.ts';
+import {evaluateMatch} from '../../backend/dist/matching/engine.js';
 
 const cwd=fileURLToPath(new URL('../',import.meta.url));
 const server=await serveBuiltSite(fileURLToPath(new URL('../dist',import.meta.url)),0,1);
@@ -19,6 +20,7 @@ const taxonomy=[{id:'1',slug:'test-support',name:'SOURCE original category'}];
 const page=data=>({data,pagination:{page:1,limit:20,total:data.length,totalPages:data.length?1:0}});
 let user=false,admin=false,empty=false,fail=false,noCategories=false,programStatus='draft',count=0;
 const failures=[];
+function matchedProgram(url){const p={...program,eligibilityComplete:true,ageMin:5,ageMax:12,deadline:'2099-01-01',familyCategories:['test-need']};return {...p,matching:evaluateMatch(p,{...(url.searchParams.has('age')?{age:Number(url.searchParams.get('age'))}:{}),...(url.searchParams.has('region')?{region:url.searchParams.get('region')}:{}),...(url.searchParams.has('need')?{need:url.searchParams.get('need')}:{})})};}
 await browser.send('Fetch.enable',{patterns:[{urlPattern:'*/api/*'}]});
 // Use a dedicated listener on the existing CDP connection via protocol interception.
 // adminBrowser exposes an event subscription so fixtures never reach a real backend.
@@ -38,13 +40,14 @@ const intercept=async event=>{
   }
   else if(p.startsWith('/api/admin/programs/'))body={data:{...privateProgram,status:programStatus,createdBy:programStatus==='review'?'22222222-2222-4222-8222-222222222222':id,reviewedBy:programStatus==='verified'?'22222222-2222-4222-8222-222222222222':null}};
   else if(p==='/api/contact-messages'){status=201;body={data:{id}};}
+  else if(p==='/api/family-categories')body=page([{id:'1',slug:'test-need',name:'SOURCE original need'}]);
   else if(p==='/api/categories')body=page(taxonomy);
   else if(p==='/api/regions')body=page([{id:'1',slug:'test-region',name:'SOURCE original region'}]);
-  else if(p==='/api/programs'){
+  else if(p==='/api/programs'||p==='/api/program-matches'){
     if(fail){status=503;body={error:{code:'UNAVAILABLE',message:'DO NOT DISPLAY RAW SERVER MESSAGE'}};}
-    else body=page(empty?[]:[program]);
+    else body=page(empty?[]:[p==='/api/program-matches'?matchedProgram(url):program]);
   }
-  else if(p==='/api/programs/'+id)body={data:program};
+  else if((p==='/api/programs/'+id||p==='/api/program-matches/'+id))body={data:p==='/api/program-matches/'+id?matchedProgram(url):program};
   else {status=404;body={error:{code:'NOT_FOUND'}};}
   await browser.send('Fetch.fulfillRequest',{requestId:event.params.requestId,responseCode:status,responseHeaders:[{name:'Content-Type',value:'application/json'}],body:Buffer.from(JSON.stringify(body)).toString('base64')});
 };
@@ -136,6 +139,30 @@ try{
       count++;console.log('PASS '+count+': '+language+' '+status+' confirmation relocalizes');
     }
     programStatus='draft';admin=false;
+  }
+  assert.deepEqual(failures,[]);assert.deepEqual(browser.errors,[]);
+  for(const language of ['kk','ru']){
+    user=false;admin=false;
+    await browser.navigate(origin+'/find?lang='+language);await expectPage('m178',language);
+    await browser.until("!!document.querySelector('select[name=need] option[value=\"test-need\"]')");
+    await browser.setValue('input[name=age]','6');await browser.setValue('select[name=region]','test-region');await browser.setValue('select[name=category]','test-support');await browser.setValue('select[name=need]','test-need');
+    await browser.evaluate("document.querySelector('.search-form').requestSubmit()");
+    await browser.until("location.pathname==='/results'&&!!document.querySelector('.matching-match')");
+    assert.equal(await browser.evaluate("new URLSearchParams(location.search).get('matching')"),'1');
+    await expectPage('m195',language);
+    await browser.evaluate("document.querySelector('.program-card h2 a').click()");
+    await browser.until("location.pathname.startsWith('/program/')&&!!document.querySelector('.matching-match')");
+    await expectPage('SOURCE original title',language);
+    for(const key of ['m310','m313','m316','m326'])assert.equal(await browser.evaluate(`document.body.innerText.includes(${JSON.stringify(tr(key,{},language))})`),true);
+    assert.equal(await browser.evaluate("new URLSearchParams(location.search).get('need')"),'test-need');
+    await choose(language==='kk'?'ru':'kk');await expectPage('SOURCE original title',language==='kk'?'ru':'kk');
+    count++;console.log('PASS '+count+': '+language+' anonymous combined matching search, details, source and translated reasons');
+    await browser.navigate(origin+'/results?matching=1&age=4&region=other&need=other&lang='+language);await expectPage('m195',language);
+    await browser.until("!!document.querySelector('.matching-not_match')");
+    await browser.evaluate("document.querySelector('.matching-summary details').open=true");
+    for(const key of ['m311','m314','m317'])assert.equal(await browser.evaluate(`document.body.innerText.includes(${JSON.stringify(tr(key,{},language))})`),true);
+    await browser.send('Page.reload');await browser.until("!!document.querySelector('.matching-not_match')");
+    count++;console.log('PASS '+count+': '+language+' incompatible filters remain explicit and persist after refresh');
   }
   assert.deepEqual(failures,[]);assert.deepEqual(browser.errors,[]);
   console.log('Localization browser: '+count+'/'+count+' PASS; API fixtures only, no database access.');

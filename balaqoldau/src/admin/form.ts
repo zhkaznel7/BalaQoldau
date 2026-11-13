@@ -1,9 +1,9 @@
 import {tr} from '../i18n/ui.ts';
 import type { Program, ProgramInput } from './types.ts';
 export interface FormValues { slug: string; category: string; title: string; description: string; sourceUrl: string; sourceName: string; applyUrl: string; deadline: string;
-  ageMin: string; ageMax: string; regions: string[]; familyCategories: string[]; isDemo: boolean }
+  ageMin: string; ageMax: string; regions: string[]; familyCategories: string[]; isDemo: boolean;eligibilityComplete:boolean }
 export function initialForm(program?: Program): FormValues {
-  return { slug: program?.slug ?? '', category: program?.category ?? '', title: program?.title ?? '', description: program?.description ?? '',
+  return { eligibilityComplete:program?.eligibilityComplete??false,slug: program?.slug ?? '', category: program?.category ?? '', title: program?.title ?? '', description: program?.description ?? '',
     sourceUrl: program?.sourceUrl ?? '', sourceName: program?.sourceName ?? '', applyUrl: program?.applyUrl ?? '', deadline: program?.deadline ?? '',
     ageMin: String(program?.ageMin ?? 0), ageMax: String(program?.ageMax ?? 17), regions: program?.regions ?? [], familyCategories: program?.familyCategories ?? [], isDemo: program?.isDemo ?? false };
 }

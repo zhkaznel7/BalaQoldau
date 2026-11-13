@@ -20,6 +20,8 @@ export const programQuery = paginationQuery.extend({
   q: z.string().trim().max(200).refine(value => safeText(value)).optional(),
 });
 export const programParams = z.strictObject({ id: z.uuid() });
+export const matchingQuery=programQuery.extend({need:slug.optional()});
+export const matchingDetailsQuery=z.strictObject({age:integer(0,17).optional(),region:slug.optional(),need:slug.optional()});
 export const contactBody = z.strictObject({
   senderName: z.string().trim().min(1).max(100).refine(value => safeText(value)),
   email: z.email().max(254),

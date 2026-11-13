@@ -20,6 +20,7 @@ function sessionData(value: unknown): Session {
 }
 function programData(value: unknown): Program {
   const p = record(value);
+  if(p.eligibilityComplete!==undefined&&typeof p.eligibilityComplete!=='boolean')throw bad();
   if (typeof p.id !== 'string' || !isProgramId(p.id) || !['draft','review','verified','published'].includes(String(p.status))
     || !Number.isInteger(p.version) || Number(p.version) < 1 || typeof p.isDemo !== 'boolean') throw bad();
   for (const key of ['slug','category','title','description']) if (typeof p[key] !== 'string') throw bad();

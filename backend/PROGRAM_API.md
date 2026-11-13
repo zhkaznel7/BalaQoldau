@@ -1,5 +1,13 @@
 # Stage 10.1 — Admin program API
 
+Stage 14 adds optional draft field `eligibilityComplete` (boolean, default false for
+new/legacy rows). It is readable on admin programs, editable with the same draft-only
+RBAC, CSRF and version protection, and takes effect for public matching only after
+the existing review/approval/publication workflow. No permissions or transitions were
+relaxed. Apply additive migration 009 first. Production operators must explicitly add
+this column to the existing column-level INSERT and UPDATE grants; no local grants
+were modified. [Matching API, review checklist and limitations](../docs/MATCHING.md).
+
 Same-origin `/api/admin` authentication/CSRF/cookie/limits from Stages 9 apply unchanged.
 No registration or parent accounts. Stage 10.2 frontend uses this API; no DELETE endpoint.
 
