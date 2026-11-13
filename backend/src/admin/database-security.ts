@@ -7,7 +7,8 @@ export const adminPrivilegeQuery = `SELECT
       AND NOT has_parameter_privilege('session_replication_role','SET')
       AND (SELECT count(*) FROM pg_trigger t WHERE NOT t.tgisinternal AND t.tgenabled IN ('O','A')
         AND ((t.tgrelid='balaqoldau.admin_users'::regclass AND t.tgname IN ('admin_password_rotation','admin_disable_revocation'))
-          OR (t.tgrelid='balaqoldau.admin_audit_log'::regclass AND t.tgname='admin_audit_log_append_only')))=3
+          OR (t.tgrelid='balaqoldau.admin_audit_log'::regclass AND t.tgname='admin_audit_log_append_only')
+          OR (t.tgrelid='balaqoldau.programs'::regclass AND t.tgname='protect_published_program')))=4
       AND NOT has_database_privilege(current_database(),'CREATE')
       AND NOT EXISTS(SELECT 1 FROM pg_database d WHERE d.datname=current_database() AND pg_has_role(d.datdba,'MEMBER'))
       AND NOT EXISTS(SELECT 1 FROM pg_roles elevated WHERE elevated.rolname IN
@@ -42,7 +43,23 @@ export const adminPrivilegeQuery = `SELECT
         WHERE NOT has_column_privilege('balaqoldau.admin_users',c.name,'SELECT'))
       AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['role','login_attempts','login_window_ends']) AS c(name)
         WHERE NOT has_column_privilege('balaqoldau.admin_users',c.name,'UPDATE'))
-      AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['event','actor_id','target_id','permission','previous_role','new_role']) AS c(name)
+      AND has_table_privilege('balaqoldau.programs','SELECT')
+      AND NOT has_table_privilege('balaqoldau.programs','DELETE,TRUNCATE,TRIGGER')
+      AND NOT EXISTS(SELECT 1 FROM pg_attribute a WHERE a.attrelid='balaqoldau.programs'::regclass AND a.attnum>0 AND NOT a.attisdropped
+        AND ((a.attname NOT IN ('slug','category_id','title','description','is_demo','source_url','source_name','apply_url','age_min','age_max','deadline','created_by','status')
+          AND has_column_privilege(a.attrelid,a.attnum,'INSERT'))
+          OR (a.attname NOT IN ('slug','category_id','title','description','source_url','source_name','apply_url','age_min','age_max','deadline',
+            'submitted_by','reviewed_by','verified_at','updated_at','version','status') AND has_column_privilege(a.attrelid,a.attnum,'UPDATE'))))
+      AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['slug','category_id','title','description','is_demo','source_url','source_name','apply_url','age_min','age_max','deadline','created_by','status']) AS c(name)
+        WHERE NOT has_column_privilege('balaqoldau.programs',c.name,'INSERT'))
+      AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['slug','category_id','title','description','source_url','source_name','apply_url','age_min','age_max','deadline','submitted_by','reviewed_by','verified_at','updated_at','version','status']) AS c(name)
+        WHERE NOT has_column_privilege('balaqoldau.programs',c.name,'UPDATE'))
+      AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['balaqoldau.categories','balaqoldau.regions','balaqoldau.family_categories']) AS t(name)
+        WHERE NOT has_table_privilege(t.name,'SELECT'))
+      AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['balaqoldau.program_regions','balaqoldau.program_family_categories']) AS t(name)
+        WHERE NOT has_table_privilege(t.name,'SELECT') OR NOT has_table_privilege(t.name,'INSERT') OR NOT has_table_privilege(t.name,'DELETE')
+          OR has_table_privilege(t.name,'TRUNCATE,TRIGGER') OR has_any_column_privilege(t.name,'UPDATE'))
+      AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['event','actor_id','target_id','permission','previous_role','new_role','previous_status','new_status']) AS c(name)
         WHERE NOT has_column_privilege('balaqoldau.admin_audit_log',c.name,'INSERT')) AS safe
       FROM pg_roles r WHERE r.rolname=current_user`;
 export async function adminDatabaseSafe(db?: Database): Promise<boolean> {

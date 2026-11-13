@@ -1,3 +1,5 @@
+import {tr} from '../i18n/ui.ts';
+import {useUi} from '../i18n/useUi.ts';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -7,6 +9,7 @@ import { resultsUrl } from '../api/navigation';
 import { CatalogStatus } from './RequestState';
 
 export default function SupportFinder() {
+  useUi();
   const navigate = useNavigate();
   const [region, setRegion] = useState('');
   const [age, setAge] = useState('');
@@ -20,18 +23,18 @@ export default function SupportFinder() {
   }
 
   return <form className="hero-finder" onSubmit={submit} role="search" aria-labelledby="finder-title">
-    <h2 id="finder-title" className="sr-only">Бағдарламаларды іздеу</h2>
-    <div className="finder-query"><label htmlFor="home-search">Бағдарлама атауы немесе кілтсөз</label><div><Search aria-hidden="true" size={22}/><input id="home-search" name="q" type="search" maxLength={200} placeholder="Мысалы: үйірме, курс, грант" value={query} onChange={event => setQuery(event.target.value)}/><button className="button primary" type="submit">Іздеу</button></div></div>
+    <h2 id="finder-title" className="sr-only">{""+tr("m300")+""}</h2>
+    <div className="finder-query"><label htmlFor="home-search">{""+tr("m301")+""}</label><div><Search aria-hidden="true" size={22}/><input id="home-search" name="q" type="search" maxLength={200} placeholder={tr("m302")} value={query} onChange={event => setQuery(event.target.value)}/><button className="button primary" type="submit">{""+tr("m059")+""}</button></div></div>
     <div className="finder-fields">
-      <label className="field"><span>Қала / өңір</span><div className="select-wrap">
+      <label className="field"><span>{""+tr("m181")+""}</span><div className="select-wrap">
         <select name="region" value={region} disabled={catalog.loading || Boolean(catalog.error)} onChange={e => setRegion(e.target.value)}>
-          <option value="">Барлық өңірлер</option>{catalog.regions.map(item => <option key={item.id} value={item.slug}>{item.name}</option>)}
+          <option value="">{""+tr("m182")+""}</option>{catalog.regions.map(item => <option key={item.id} value={item.slug}>{item.name}</option>)}
         </select><ChevronDown aria-hidden="true" size={16} />
       </div></label>
-      <label className="field"><span>Баланың жасы</span><input name="age" type="number" min="0" max="17" step="1" placeholder="0–17 жас" value={age} onChange={e => setAge(e.target.value)} /></label>
-      <label className="field"><span>Қолдау түрі</span><div className="select-wrap">
+      <label className="field"><span>{""+tr("m183")+""}</span><input name="age" type="number" min="0" max="17" step="1" placeholder={tr("m184")} value={age} onChange={e => setAge(e.target.value)} /></label>
+      <label className="field"><span>{""+tr("m185")+""}</span><div className="select-wrap">
         <select name="category" value={category} disabled={catalog.loading || Boolean(catalog.error)} onChange={e => setCategory(e.target.value)}>
-          <option value="">Барлық түрлер</option>{catalog.categories.map(item => <option key={item.id} value={item.slug}>{item.name}</option>)}
+          <option value="">{""+tr("m303")+""}</option>{catalog.categories.map(item => <option key={item.id} value={item.slug}>{item.name}</option>)}
         </select><ChevronDown aria-hidden="true" size={16} />
       </div></label>
     </div>

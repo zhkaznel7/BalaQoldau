@@ -9,7 +9,7 @@ interface Program {
   regions: string[]; familyCategories: string[];
 }
 interface Taxonomy { id: string; slug: string; name: string }
-const programSelect = `SELECT p.id,p.slug,c.slug AS category,p.title,p.description,
+export const programSelect = `SELECT p.id,p.slug,c.slug AS category,p.title,p.description,
   p.source_url AS "sourceUrl",p.source_name AS "sourceName",p.verified_at AS "verifiedAt",
   p.age_min AS "ageMin",p.age_max AS "ageMax",p.deadline::text AS deadline,
   p.apply_url AS "applyUrl",false AS "isDemo",

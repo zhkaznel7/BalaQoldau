@@ -1,8 +1,80 @@
-# BalaQoldau — Stage 7.6 GovTech ақпараттық порталы
+# BalaQoldau — GovTech порталы және әкімші/пайдаланушы интерфейсі
+
+Тіл таңдау header-дегі ықшам ҚАЗ/РУС dropdown арқылы іске асады. Қолданыстағы `lang`
+URL параметрі навигацияда сақталады; профильдегі қайталанатын тіл батырмалары алынды.
+
+Stage 13: public, пайдаланушы және admin интерфейсі қазақша/орысша аударылған.
+Сөздіктер, ресми контенттің бастапқы тілдегі fallback тәртібі және тексерілген 20 маршрут:
+[локализация құжаты](../docs/LOCALIZATION.md). `npm run build` кейін
+`npm run test:localization` екі тілдегі маршруттарды дерекқорсыз тексереді.
+
+Stage 12: `/profile` — optional аты-жөні/қала/өңір, email тек көрсету, сақталғандар саны;
+`/profile/saved` — PostgreSQL-де сақталған жария бағдарламалар. `?lang=ru` орысша UI қосады.
+Аноним сақтауды басқанда ағымдағы бетіне қайтаратын login ұсынысы шығады; іздеу ашық қалады.
+Бұрынғы браузер таңдаулылары `/favorites` ішінде сақталды, автоматты көшірілмейді/өшірілмейді.
+[API, миграция және production құқықтары](../backend/USER_PROFILE.md).
+
+Stage 11: `/register`, `/login`, `/forgot-password`, `/reset-password` және қорғалған
+`/profile`. Auth интерфейсінің тілі `?lang=kk` немесе `?lang=ru` арқылы таңдалады;
+кіру/тіркелу/reset беттерінде тіл ауыстырғыш пен пароль кеңесі көрсетілмейді.
+Жалпы каталогтың тілі өзгермейді. Құпиясөздер мен токендер localStorage
+ішінде сақталмайды. [Backend баптауы және қауіпсіздік](../backend/USER_AUTH.md).
+Екі build-тен кейін `npm run test:user-browser` нақты API/DB арқылы тексереді; уақытша
+жазбалар тек жергілікті balaqoldau_dev ішінде жасалып, транзакциямен кері қайтарылады.
+
+## Stage 10.2 — Әкімшілік бөлім
+
+`/admin/login` және `/admin/programs` public layout/catalog/favorites-тен бөлек lazy-loaded
+React route. Login/logout, session bootstrap, role-aware навигация, search/status/pagination,
+draft create/edit/detail және рұқсат етілген workflow әрекеттері нақты backend API қолданады.
+Mock/fallback бағдарламалар, ашық тіркелу немесе parent accounts жоқ.
+
+Іске қосу алдында backend migrations 001–006, separate runtime grants және offline Editor/
+Reviewer/Admin provisioning қажет ([backend contract](../backend/PROGRAM_API.md)). Backend
+local env: ADMIN_ENABLED=true, ADMIN_ORIGIN нақты Vite origin (мысалы http://localhost:5173),
+DATABASE_URL тек бекітілген development DB. Existing env/password файлдарын overwrite етпеңіз;
+осы кезеңде real accounts/provisioning/production grants өзгертілмеді.
+
+Frontend `npm run dev`, backend `npm run dev` бөлек терминалдарда. Vite `/api` proxy қолданылады.
+Production HTTPS same-origin reverse proxy керек: `/admin/*` → SPA index, `/api/admin/*` →
+Express. `VITE_ADMIN_API_BASE_URL=/api/admin` — public path only, cross-origin URLs rejected;
+admin transport public API-дің cross-origin base setting-ін қолданбайды. Secrets ешқашан VITE_* емес.
+
+Cookies браузер арқылы `credentials:same-origin`, CSRF token memory-only, private GET no-store,
+redirects rejected. Password/token/session identifiers localStorage/sessionStorage/URL/log-қа
+түспейді. 401/private expiry clears protected UI; focus/pageshow және 60s visible-tab check
+session/role жаңартады. Identity ауысса private form tree қайта құрылады. UI controls — UX;
+backend әр action/session/role/ownership/CSRF/version-ды міндетті қайта тексереді.
+
+409 edit/action conflict пен unknown network outcome automatic retry жасамайды: typed draft
+сақталып, Save/actions бұғатталады; explicit reload unsaved changes-ті жоятыны көрсетілген.
+Create duplicate-slug conflict басқа slug таңдауға мүмкіндік береді. Logout failure success
+деп көрсетілмейді: session refresh/retry қажет. Private draft contents persisted емес.
+
+Тексеру (dependencies алдын ала орнатылған, Node 24.7+):
+
+```sh
+npm run build
+npm run lint
+npm run typecheck
+npm test
+# Backend build және dedicated TEST_DATABASE_URL/pgpass конфигурациясынан кейін:
+npm run test:admin-browser
+```
+
+`test:admin-browser` нақты headless Chrome → built dist → Express → balaqoldau_test.
+Synthetic account/program/session fixtures бір transaction ішінде ROLLBACK; no real admin
+password required. Backend DB suite-мен қатар жүргізбеңіз (shared transactional DDL fixtures).
+Chrome path CHROME_PATH арқылы өзгертіледі; browser/user profile және screenshots ignored
+node_modules/.cache ішінде. 320/375/768/1024/1440 widths, keyboard/labels/contrast тексеріледі;
+толық WCAG certification емес. Real restricted-role HTTPS staging және assistive testing қажет.
+
+Ескі public browser QA `BROWSER_BUILD=true npm run test:browser` unchanged; actual dev API
+GET-only smoke plus intercepted public UI fixtures. Admin browser suite uses real DB/API.
 
 React + TypeScript интерфейсі нақты Express API-ге қосылған. Іздеу/details/favorites
 hardcoded DEMO тізімін қолданбайды. Development базасында тек екі DEMO draft бар;
-public нәтиженің бос болуы қалыпты. Frontend ешқандай бағдарлама жарияламайды.
+public нәтиженің бос болуы қалыпты. Public беттер бағдарлама жарияламайды; admin әрекеттері backend рұқсатымен ғана орындалады.
 
 ## Ағымдағы дизайн
 

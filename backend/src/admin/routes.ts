@@ -10,6 +10,8 @@ import { verifyPassword } from './password.ts';
 import { hasPermission, permissionsFor } from './authorization.ts';
 import type { Permission } from './authorization.ts';
 import { paginationQuery } from '../api/schemas.ts';
+import { programListInput } from './program-schemas.ts';
+import { handlePrograms } from './program-routes.ts';
 
 const empty = z.strictObject({});
 export const loginInput = z.strictObject({ email: z.email().max(254).transform(value => value.toLowerCase()),
@@ -25,18 +27,20 @@ export function adminRouter(config: Config, database?: Database) {
     if (production && !request.secure) throw new HttpError(403, 'HTTPS_REQUIRED', 'HTTPS required.');
     const origin = request.get('Origin');
     if ((origin !== undefined && origin !== config.ADMIN_ORIGIN) || request.get('Sec-Fetch-Site') === 'cross-site'
-      || (request.method === 'POST' && origin !== config.ADMIN_ORIGIN)) throw new HttpError(403, 'CSRF_FORBIDDEN', 'Request is not allowed.');
-    const query = request.method === 'GET' && request.path === '/audit-log' ? paginationQuery : empty;
+      || (['POST','PATCH'].includes(request.method) && origin !== config.ADMIN_ORIGIN)) throw new HttpError(403, 'CSRF_FORBIDDEN', 'Request is not allowed.');
+    const query = request.method === 'GET' && request.path === '/audit-log' ? paginationQuery
+      : request.method === 'GET' && request.path === '/programs' ? programListInput : empty;
     if (!query.safeParse(request.query).success) throw new HttpError(400, 'VALIDATION_ERROR', 'Invalid request input.');
     next();
   });
   router.use(rateLimit({ windowMs: 900000, limit: 60, standardHeaders: 'draft-8', legacyHeaders: false,
     handler: (_req, _res, next) => next(new HttpError(429, 'RATE_LIMITED', 'Too many requests.')) }));
+  router.use('/programs', express.json({ limit: '64kb', strict: true, inflate: false }));
   router.use(express.json({ limit: '2kb', strict: true, inflate: false }));
   const loginLimit = rateLimit({ windowMs: 900000, limit: 5, standardHeaders: 'draft-8', legacyHeaders: false,
     handler: (_req, _res, next) => next(new HttpError(429, 'RATE_LIMITED', 'Too many requests.')) });
   router.use(async (request, response, next) => {
-    if (!['GET', 'POST'].includes(request.method)) throw new HttpError(405, 'METHOD_NOT_ALLOWED', 'Method is not allowed.');
+    if (!['GET', 'POST'].includes(request.method) && !(request.method === 'PATCH' && request.path.startsWith('/programs/'))) throw new HttpError(405, 'METHOD_NOT_ALLOWED', 'Method is not allowed.');
     if (!database) throw new HttpError(503, 'ADMIN_UNAVAILABLE', 'Authentication temporarily unavailable.');
     try {
       const repository = adminRepository(database);
@@ -56,6 +60,19 @@ export function adminRouter(config: Config, database?: Database) {
         }
         return { id: session.adminId, role: session.role };
       };
+      const checkCsrf = async () => {
+        if (!session || !token) throw denied();
+        const csrf = request.get('X-CSRF-Token');
+        if (!csrf || !/^[a-f0-9]{64}$/.test(csrf) || !timingSafeEqual(Buffer.from(csrf), Buffer.from(session.csrf))) {
+          await repository.audit('security.csrf_denied', session.adminId);
+          throw new HttpError(403, 'CSRF_FORBIDDEN', 'Request is not allowed.');
+        }
+        if (!request.is('application/json')) throw new HttpError(415, 'UNSUPPORTED_MEDIA_TYPE', 'JSON required.');
+      };
+      if (request.path === '/programs' || request.path.startsWith('/programs/')) {
+        await handlePrograms(request, response, database, token, authorize, checkCsrf);
+        return;
+      }
       if (request.path === '/session' && request.method === 'GET') {
         if (session) response.json({ data: { authenticated: session.adminId !== null, admin: session.adminId ? { id: session.adminId } : null, csrfToken: session.csrf } });
         else {
@@ -85,12 +102,7 @@ export function adminRouter(config: Config, database?: Database) {
         if (roleRoute) await repository.audit('rbac.denied', null, 'users:roles:manage');
         throw denied();
       }
-      const csrf = request.get('X-CSRF-Token');
-      if (!csrf || !/^[a-f0-9]{64}$/.test(csrf) || !timingSafeEqual(Buffer.from(csrf), Buffer.from(session.csrf))) {
-        await repository.audit('security.csrf_denied', session.adminId);
-        throw new HttpError(403, 'CSRF_FORBIDDEN', 'Request is not allowed.');
-      }
-      if (!request.is('application/json')) throw new HttpError(415, 'UNSUPPORTED_MEDIA_TYPE', 'JSON required.');
+      await checkCsrf();
       if (roleRoute) {
         const principal = await authorize('users:roles:manage');
         const target = z.uuid().safeParse(roleRoute[1]);

@@ -29,6 +29,9 @@ const apiProcess = spawn(process.execPath, ['--env-file=.env', '--input-type=mod
   "process.on('message',v=>{if(v==='shutdown'){process.emit('SIGTERM');process.disconnect();}});await import('./dist/server.js');"], {
   cwd: backend, windowsHide: true, stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
   env: { ...process.env, NODE_ENV: 'development', HOST: '127.0.0.1', PORT: String(apiPort), DB_SSL_MODE: 'disable',
+    // This suite tests public GET smoke; authentication requests are browser fixtures.
+    // Do not inherit enabled local auth / privileged-role startup requirements.
+    ADMIN_ENABLED: 'false', USER_AUTH_ENABLED: 'false',
     DATABASE_URL: 'postgresql://postgres@127.0.0.1:5432/balaqoldau_dev', CORS_ALLOWED_ORIGINS: origin },
 });
 const builtMode = process.env.BROWSER_BUILD === 'true';
@@ -41,7 +44,7 @@ const pending = new Map();
 let sequence = 0, session;
 const requests = [], runtimeErrors = [];
 let fixtureMode = false, flaky = 0, contactMode = 'success', catalogFailure = false;
-let manyCategories = false;
+let manyCategories = false,fixtureAuthenticated=false;
 let passed = 0;
 const check = name => { passed++; console.log(`PASS ${passed}: ${name}`); };
 const id1 = '11111111-1111-4111-8111-111111111111', id2 = '22222222-2222-4222-8222-222222222222';
@@ -59,11 +62,13 @@ function send(method, params = {}, targetSession = session) {
 }
 async function intercept(message) {
   const { requestId, request } = message.params;
-  if (!fixtureMode) return send('Fetch.continueRequest', { requestId }, message.sessionId);
   const url = new URL(request.url);
+  if (!fixtureMode&&!url.pathname.startsWith('/api/auth/')) return send('Fetch.continueRequest', { requestId }, message.sessionId);
   requests.push({ path: url.pathname, search: url.search, method: request.method, body: request.postData });
   let status = 200, body;
-  if (url.pathname.endsWith('/categories')) {
+  if (url.pathname==='/api/auth/session') body={data:{authenticated:fixtureAuthenticated,user:fixtureAuthenticated?{id:id1,email:'test@example.com',language:'kk'}:null,csrfToken:'a'.repeat(64),resetAvailable:false}};
+  else if(url.pathname==='/api/auth/profile')body={data:{id:id1,email:'test@example.com',language:'kk',fullName:null,location:null,savedCount:0}};
+  else if (url.pathname.endsWith('/categories')) {
     if (catalogFailure) { status = 503; body = {}; }
     else body = page([{ id: '1', slug: 'test-support', name: 'TEST қолдау' }, ...(manyCategories ? Array.from({ length: 5 }, (_, i) => ({ id: String(i + 2), slug: 'test-extra-' + i, name: 'TEST отбасына қолдау туралы ұзақ санат атауы ' + (i + 2) })) : [])]);
   } else if (url.pathname.endsWith('/regions')) body = page([{ id: '1', slug: 'test-region', name: 'TEST өңір' }]);
@@ -263,11 +268,14 @@ try {
   await navigate('/program/' + id1); await until('!!document.querySelector(".details-heading")');
   assert.equal(await evaluate('document.querySelector(".details-content a").href'), 'https://example.com/test');
   assert.match(await evaluate('document.querySelector(".details-content").textContent'), /Тексерілген күні:/);
-  await evaluate('document.querySelector(".save-button").click()');
-  await until('document.querySelector(".save-button").getAttribute("aria-pressed")==="true"');
+  await until('!document.querySelector(".save-button").disabled');await evaluate('document.querySelector(".save-button").click()');
+  await until('!!document.querySelector(".saved-feedback a")');
+  assert.equal(new URL(await evaluate('document.querySelector(".saved-feedback a").href')).searchParams.get('returnTo'),'/program/'+id1);
+  assert.equal(await evaluate('document.querySelector(".save-button").getAttribute("aria-pressed")'), 'false');
+  await evaluate(`localStorage.setItem('balaqoldau:favorites',JSON.stringify([${JSON.stringify(id1)}]))`);
   await navigate('/favorites'); await until('!!document.querySelector(".program-card")');
-  await evaluate('document.querySelector(".save-button").click()'); await until('!!document.querySelector(".empty")');
-  check('API details and UUID favorites persist and remove');
+  await evaluate('document.querySelector("main .inner-page > button").click()'); await until('!!document.querySelector(".empty")');
+  check('API details offer anonymous login; existing browser favorites remain readable and clearable');
   await navigate('/program/' + privateId); await until('!!document.querySelector(".request-error")');
   assert.equal(await evaluate('document.querySelector("main").textContent.includes("DEMO hidden")'), false);
   await navigate('/program/44444444-4444-4444-8444-444444444444'); await until('!!document.querySelector(".empty")');
@@ -387,6 +395,45 @@ try {
   await until('location.pathname==="/results" && !!document.querySelector(".program-card")');
   assert.deepEqual(await evaluate('Object.fromEntries(new URLSearchParams(location.search))'), { category: 'test-support', region: 'test-region', limit: '1', page: '2' });
   check('program back navigation preserves category, region and pagination');
+  await navigate('/login?lang=kk');await until('!!document.querySelector("#user-email")');
+  assert.equal(await evaluate('!!document.querySelector(".account-language")'),false);
+  await evaluate('document.querySelector(".language-trigger").focus()');await keypress('Enter','Enter',13);
+  await until('document.activeElement.getAttribute("role")==="menuitemradio"');
+  await keypress('ArrowDown','ArrowDown',40);await keypress('Enter','Enter',13);
+  await until('document.querySelector(".account-page").lang==="ru"');
+  assert.equal(await evaluate('document.querySelector(".language-trigger").textContent.trim()'),'РУС');
+  assert.equal(await evaluate('document.activeElement.classList.contains("language-trigger")'),true);
+  check('single header language menu supports keyboard selection and existing Russian localization');
+  await evaluate('document.querySelector(".language-trigger").click()');await keypress('Escape','Escape',27);
+  assert.equal(await evaluate('document.querySelector(".language-trigger").getAttribute("aria-expanded")'),'false');
+  assert.equal(await evaluate('document.activeElement.classList.contains("language-trigger")'),true);
+  await evaluate('document.querySelector(".language-trigger").click()');await until('!!document.querySelector(".language-menu")');
+  await evaluate('document.querySelector("main").dispatchEvent(new PointerEvent("pointerdown",{bubbles:true}))');
+  await until('document.querySelector(".language-trigger").getAttribute("aria-expanded")==="false"');
+  check('Escape restores trigger focus and outside pointer closes the language menu');
+  await evaluate('document.querySelector("#primary-navigation a[href^=\\"/find\\"]").click()');
+  await until('location.pathname==="/find"&&new URLSearchParams(location.search).get("lang")==="ru"');
+  await evaluate('document.querySelector(".footer-top a[href=\\"/contact\\"]").click()');
+  await until('location.pathname==="/contact"&&new URLSearchParams(location.search).get("lang")==="ru"');
+  assert.equal(await evaluate('document.querySelector(".language-trigger").textContent.trim()'),'РУС');
+  check('language persists through header and existing footer navigation without another locale state');
+  for(const width of [320,375,768,1024,1440]){
+    await send('Emulation.setDeviceMetricsOverride',{width,height:1000,deviceScaleFactor:1,mobile:width<760});
+    await evaluate('document.querySelector(".language-trigger").click()');
+    const report=await evaluate('(()=>{const r=document.querySelector(".language-menu").getBoundingClientRect();return {left:r.left,right:r.right,overflow:document.documentElement.scrollWidth>innerWidth,visible:document.querySelector(".language-trigger").getBoundingClientRect().width>0};})()');
+    assert.equal(report.visible,true);assert.equal(report.overflow,false);assert.ok(report.left>=0&&report.right<=width);
+    await keypress('Escape','Escape',27);
+  }
+  check('compact language trigger and dropdown remain visible and within five viewport widths');
+  fixtureAuthenticated=true;await navigate('/profile?lang=ru');await until('!!document.querySelector("#profile-name")');
+  await setValue('#profile-name','TEST preserved draft');
+  await evaluate('document.querySelector(".language-trigger").click()');await until('!!document.querySelector(".language-menu")');
+  await evaluate('document.querySelector("[role=menuitemradio][lang=kk]").click()');
+  await until('document.querySelector(".account-page").lang==="kk"');
+  assert.equal(await evaluate('document.querySelector("#profile-name").value'),'TEST preserved draft');
+  assert.equal(await evaluate('document.querySelector(".language-trigger").textContent.trim()'),'ҚАЗ');
+  assert.equal(await evaluate('!!document.querySelector(".account-language")'),false);
+  check('profile uses the single header switcher and retains unsaved inputs across language selection');
   assert.deepEqual(runtimeErrors, []);
   console.log(`Browser integration: ${passed}/${passed} PASS; only real GET requests reached development backend`);
 } finally {

@@ -30,8 +30,14 @@ try {
     INSERT INTO balaqoldau.admin_audit_log(event,target_id,new_role) SELECT 'admin.created',id,role FROM created`,
   [credentials.email, hash, role]);
   console.info('Administrator created.');
-} catch {
-  console.error('Administrator creation failed: check invocation, configuration and database permissions.');
+} catch (error) {
+  console.error('Administrator creation failed.');
+  console.error('Error type:', error instanceof Error ? error.name : 'Unknown');
+  console.error('Error code:', 
+    typeof error === 'object' && error !== null && 'code' in error
+      ? error.code
+      : 'N/A'
+  );
   process.exitCode = 1;
 } finally {
   await pool?.end().catch(() => { process.exitCode = 1; });

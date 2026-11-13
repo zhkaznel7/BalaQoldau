@@ -1,5 +1,27 @@
 # Stage 7 security review — 2026-11-11
 
+## Stage 12 update
+
+User-requested optional full name/location and account-linked saved-program interests now
+exist; see [USER_PROFILE.md](../backend/USER_PROFILE.md). No child/IIN/medical fields were
+added. Email remains immutable. Every dashboard query derives ownership from an active
+session, mutations require CSRF/Origin/JSON, text is normalized/bounded and query values
+parameterized. Hidden/DEMO programs never appear in saved lists/counts. Production runtime
+needs only the documented narrow profile and saved-table grants; no session UPDATE rights
+were introduced. Publish accurate optional-data/interest retention and authorized-erasure
+procedures before launch. No automatic erasure or production restricted-role certification
+is claimed. Contact retention and admin security remain unchanged.
+
+## Stage 11 update
+
+Historical Stage 7 statements below predate authentication. Regular-user accounts now
+exist separately from admin accounts: [current auth/security runbook](../backend/USER_AUTH.md).
+Only email, chosen language, Argon2id hash, timestamps/counters and server session/reset
+metadata are stored; no IIN, medical information, tracking or real account seeds were added.
+Registration is not email/identity verification. Account privacy/deletion policy, expired
+token/session physical cleanup, real mail delivery and restricted-role HTTPS staging remain
+operator requirements. Reset dispatch is best effort; no automatic delivery promise.
+
 ## Reviewed boundaries
 
 Browser query/body → Zod → parameterized pg → published-only view; external source

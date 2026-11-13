@@ -72,6 +72,8 @@ jobs:
           npm run db:migrate
       - name: Database integration tests
         run: npm run test:db --prefix backend
+      - name: User account database security tests
+        run: npm run test:user-db --prefix backend
       - name: Dependency audits (production high/critical gate)
         run: node scripts/audit-dependencies.mjs
       - name: Check actual production artifacts

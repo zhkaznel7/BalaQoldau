@@ -961,3 +961,362 @@ expiry/audit retention scheduling and external privileged-operator controls. Aud
 fail closed; failed logout reports 503 and needs retry/operator revocation, never false success.
 DB owners/superusers can defeat triggers; no tamper-proof audit or public production readiness
 claim. No commit/push/merge/deploy/main changes, no next stage started.
+
+## Stage 10.1 — Admin Program CRUD API
+
+### Implementation
+
+- Inspected the existing schema/auth/RBAC/security conventions. Added private program list,
+  create, UUID detail, PATCH and submit/approve/reject/publish/unpublish endpoints under
+  /api/admin/programs. Existing public API, view and published/non-DEMO visibility unchanged.
+- Editor creates/edits/submits own drafts only; Reviewer reviews but cannot edit/publish;
+  Admin manages any draft and alone publishes/unpublishes. Creator/submitter cannot approve
+  their own record, even Admin. Admin can reject a verified record back to draft for correction
+  without publishing it first. Unknown/legacy-owner drafts are editable/submittable by Admin.
+- Workflow draft → review → verified (human approval) → published. Source URL/name required
+  for submission, verifiedAt/reviewedBy server-controlled on approval; publish requires reviewer
+  provenance. DEMO stays draft and isDemo cannot be patched. Published edits blocked until
+  unpublish, which clears approval and requires fresh review. No DELETE API; DB trigger also
+  rejects ordinary DELETE of published rows. No real opportunity invented/seeded/published.
+- Strict Zod body/query/UUID/action validation; bounded pagination/64-KiB program JSON,
+  credential-free HTTPS URLs, age/date/taxonomy checks. Other auth JSON stays 2 KiB. PATCH
+  requires version and mutable content only; every successful mutation increments version.
+  Row locks plus stale-version conflict prevent lost updates. SQL parameters bind all inputs.
+- Fresh session/credential-version/RBAC check and user/program locks inside a pool transaction;
+  all content/association/state writes and audit INSERT commit or roll back together. Revocation
+  after middleware is rechecked; audit failures yield safe 503 without partial rows or links.
+  Denials are recorded after transaction rollback, with no title/description/URL/body logging.
+- Append-only 006 adds review status, ownership/provenance/version fields, old/new audit status
+  and published-delete guard. Migrations 001–005 unchanged; public view/DEMO constraint retained.
+  Startup privilege gate extended for the guard, narrow program column grants and link-table
+  operations; no program DELETE/TRUNCATE/owner privilege permitted. DB roles/grants unchanged.
+
+### Files
+
+New backend/src/admin/program-{schemas,repository,routes,transaction}.ts,
+backend/migrations/006_admin_program_workflow.sql, backend/tests/program-admin.test.mjs,
+backend/tests/integration/program-admin.test.mjs, backend/PROGRAM_API.md.
+Updated admin routes/repository/database-security, backend/package.json test:db concurrency,
+production env example, backend README, docs/DEPLOYMENT.md and PROGRESS.md.
+No dependencies/lockfiles/frontend files/CI security thresholds modified.
+
+### Verification and actual regressions fixed
+
+- Initial schema test failed before implementation. TypeScript caught an unsafe partial merge;
+  fixed with explicit field/null handling. Workflow tests caught a PostgreSQL parameter-type
+  ambiguity; explicit text binding fixed it. Safe 503 and rollback held during the failure.
+- Parallel DB fault-injection tests both tried transactional audit-trigger DDL and deadlocked.
+  test:db now runs files with --test-concurrency=1 on the shared dedicated schema; no skipped
+  tests/assertions or relaxed security gates. Concurrent revision requests still run within
+  the program test. Production pool commit/rollback path is unit-tested separately.
+- Backend build/lint/typecheck PASS; **118/118 unit tests PASS**, skipped 0.
+- PostgreSQL suite **53/53 PASS**, skipped 0. Program cases cover 401/403/CSRF, strict fields,
+  ownership, taxonomy, duplicate slug, literal SQL injection, mixed age bounds, approval/reject,
+  publish/unpublish, private/public/DEMO visibility, published edit/delete guards, revisions,
+  self-approval, long Unicode body, atomic create/update/audit failure and in-flight revocation.
+- Frontend build/lint/typecheck and **29/29 tests PASS**; built-dist browser **24/24 PASS**,
+  real development backend GET requests only. Release security **15/15 PASS**; full-HEAD
+  source/migration policy and actual artifact checks PASS; diff whitespace PASS.
+- Audit exit 0: backend all/prod 0; frontend prod 0, all 10 moderate dev-tool findings.
+  Existing pgpass deprecation warning remains. No package installed/upgraded.
+- Only balaqoldau_test received migration 006; all synthetic programs/users/links/temporary
+  triggers/state/audit changes rolled back. Dev, balaqoldau_db and unrelated DB untouched.
+
+Stage 10.1 implementation/local verification complete. Production must apply 006 with the
+migrator, grant the documented narrow runtime columns, and pass real restricted-role HTTPS/
+multi-connection staging verification; positive runtime-grant certification remains pending.
+Human source/eligibility/deadline verification, audit/expiry scheduling and monitoring still
+require operators. No admin UI, parent accounts, unrelated features, commit/push/merge/deploy,
+main changes or automatic next-stage work.
+
+
+
+## Stage 10.2 — Admin Dashboard UI (2026-11-12)
+
+Implemented separate lazy-loaded /admin routes in the existing GovTech frontend:
+Kazakh login/logout, server session verification, role-aware navigation, real program
+search/status pagination, details, create/edit forms and confirmed workflow actions.
+Editor ownership, Reviewer human-review acknowledgement and Admin publication controls
+reflect server permissions; backend authorization remains authoritative on every request.
+No public registration, parent accounts, fake API data or unrelated management screens.
+
+Security: HttpOnly cookies with same-origin credentials, memory-only CSRF, no auth storage,
+no-store requests, safe localized errors and no automatic mutation retries. 401 clears private
+UI; visible-tab/focus session refresh detects expiry; identity changes reset form trees.
+403 offers explicit refresh. Revision conflicts preserve typed edits and block stale writes
+until explicit reload; unknown mutation outcomes require server-state verification.
+
+Files: new balaqoldau/src/admin/{AdminApp,Programs}.tsx, api.ts, types.ts, context.ts,
+form.ts and admin.css; tests/admin-api.test.mjs, tests/admin-browser.mjs and
+tests/helpers/admin-browser.mjs. Updated frontend App.tsx, package.json, .env.example,
+README.md; backend admin program schemas/repository/routes and integration tests;
+backend/PROGRAM_API.md, docs/DEPLOYMENT.md and this log.
+The private program list now accepts bounded literal q search; authenticated taxonomy
+returns actual categories/regions/family categories, including unused choices. Queries
+remain parameterized; >1000 taxonomy rows fail safely instead of silently truncating.
+No new schema migration, dependencies or lockfile changes for Stage 10.2; inherited
+Stage 10.1 work is preserved.
+
+Verification:
+- Frontend build/lint/TypeScript PASS; unit tests **35/35 PASS**.
+- Backend build/lint/TypeScript PASS; unit tests **118/118 PASS**;
+  dedicated PostgreSQL integration suite **53/53 PASS**, no skipped tests.
+- Real built React -> Express -> balaqoldau_test admin browser scenarios **14/14 PASS**:
+  login/cookies/CSRF, Editor create/submit, Reviewer approval, stale-role server 403,
+  Admin publish/unpublish/public visibility, search/status/empty/error/retry, revision
+  conflicts, expiry, keyboard focus/labels and 320/375/768/1024/1440px layouts.
+  Synthetic accounts/programs/sessions/audit data are enclosed in BEGIN/ROLLBACK;
+  no existing development/production messages or programs were changed.
+- Existing public browser suite: development **23/23 PASS**, built dist **24/24 PASS**;
+  real development database smoke makes GET requests only. Remaining public scenarios
+  use the existing browser-only test fixtures; admin tests use real APIs/database.
+- Release security tests **15/15 PASS**; full-HEAD append-only migration/source/license
+  policy and actual production artifact checks PASS. No security gates relaxed.
+- Dependency audits exit 0 with registry access: backend all/production 0; frontend
+  production 0, all 10 existing moderate development-tool findings; high/critical 0.
+  Sandbox initially prevented registry access and Chrome execution; reruns with approved
+  access passed. Initial lint/helper issues were fixed without disabling assertions/rules.
+
+Local implementation and verification complete. Browser accessibility checks cover labels,
+focus, overflow and computed text contrast, not full WCAG certification; manual assistive-
+technology testing is still required. Production must use HTTPS same-origin admin ingress,
+existing secure-cookie/CSRF configuration, restricted runtime DB grants and staging checks
+documented in DEPLOYMENT.md. Existing pgpass deprecation warning and 10 moderate frontend
+development findings remain. No commit, push, merge, deployment or main branch changes.
+
+## Stage 11 — User authentication and personal accounts (2026-11-12)
+
+Implemented opt-in regular-user auth without changing admin principals, RBAC, APIs or cookies.
+New additive migration 007: user_accounts, user_sessions, user_reset_tokens, indexes and
+credential-rotation trigger. Separate /api/auth session/register/login/logout/profile and
+password-reset request/confirm routes use strict Zod validation, parameterized SQL, bounded
+Argon2id, cookie/CSRF rotation, exact Origin/Fetch Metadata checks, independent rate limits,
+absolute expiry, safe no-store errors and server-side authorization. Profile never accepts
+a user ID. Persistent account throttles complement process-local IP gates. Production
+startup additionally rejects unsafe user-table role permissions; no role changes executed.
+
+Added lazy-loaded GovTech registration/login/recovery/profile pages with KZ/RU auth text,
+state-preserving language switching, no credential/token client persistence, accessible
+labels/focus, loading/errors/success and responsive layouts. Existing contact email validator
+is reused without changing its accepted inputs. Public header links to /profile.
+The browser regression found a same-page reset-link bug; hashchange handling now replaces
+the memory token and clears the fragment. Login/reset never blindly retry mutations.
+
+Reset tokens are random, stored hashed, expiring and single-use; successful reset atomically
+invalidates all prior user sessions/tokens. Delivery is optional via an already configured
+local sendmail-compatible MTA, no shell/process-argument personal data and bounded timeout.
+No MTA was installed or live delivery configured/tested. Missing config is explicitly
+unavailable in API/UI; acceptance never asserts email delivery or account existence.
+Dispatch is bounded best effort, not a durable outbox; delivery monitoring and restart-loss
+handling remain operational limitations. Registration is not email/identity verification.
+
+Files: backend/src/users/{schemas,repository,routes,mail,database-security}.ts;
+backend/migrations/007_user_accounts.sql; app.ts, config/env.ts, lifecycle.ts, package.json;
+backend tests/user-auth.test.mjs, tests/users/user-accounts.test.mjs and
+tests/helpers/user-database.mjs; balaqoldau/src/account/{api,translations}.ts, AccountPage.tsx,
+account.css; App.tsx, api/contact.ts, package.json and user-auth/user-browser tests.
+Updated root/backend/frontend README, backend .env examples, backend/USER_AUTH.md,
+docs/SECURITY.md, docs/DEPLOYMENT.md, CI workflow and this log. Previous uncommitted
+Stages 10.1/10.2 and user edits (including admin/provision.ts) were preserved.
+
+Verification:
+- Backend build/lint/typecheck PASS; **123/123 unit tests PASS**, skipped 0.
+- Frontend build/lint/typecheck PASS; **38/38 tests PASS**, skipped 0.
+- New DB security suite **16/16 PASS**: strict validation, CSRF/origin, duplicate safety,
+  hashing/session rotation, user/admin isolation in both directions, logout, token hashing/
+  expiry/replay, password/session revocation, disabled users, IP/account throttling, real
+  PostgreSQL production-privilege query/owner rejection, production cookie/HTTPS behavior,
+  unavailable delivery and safe delivery-failure logs.
+- Only verified loopback **balaqoldau_dev** was accessed locally. First migration run applied
+  007 (one migration); subsequent runs applied zero. Synthetic user/admin/session/reset/
+  audit fixtures were enclosed in BEGIN/ROLLBACK. No existing account data overwritten,
+  no catalog population or contact cleanup, no balaqoldau_db/balaqoldau_test access.
+- Real built frontend/Express/PostgreSQL browser suite **12/12 PASS**, including KZ/RU,
+  registration/login/profile/logout/reset/replay/expiry, private UI removal, user-to-admin
+  denial, existing admin login/list/logout, honest no-mail state, contrast/labels/focus and
+  320/375/768/1024/1440px layouts. Existing public built-browser regression **24/24 PASS**.
+- Release security **15/15 PASS**; full-HEAD source/license/append-only migration policy
+  and actual production artifact checks PASS. Audit exit 0: backend all/prod 0; frontend
+  prod 0, all 10 existing moderate development findings, high/critical 0. No dependencies
+  installed/upgraded or security gates weakened. pgpass deprecation warning remains.
+- Full git diff whitespace check reports pre-existing admin/provision.ts:36 trailing space;
+  that already-modified unrelated file was not edited during Stage 11.
+- Added dedicated CI user-DB step, using only the existing isolated CI database when both
+  CI/GITHUB_ACTIONS are true. Older local full test:db/admin-browser intentionally target
+  balaqoldau_test and were not run under the current dev-only authorization. No GitHub CI
+  execution/push is claimed; current admin behavior is checked by unit and real dev-browser tests.
+
+Implementation/local verification complete. Remaining setup: enable USER_AUTH_ENABLED and
+exact USER_ORIGIN in protected local configuration; configure/test real mail delivery if
+recovery is required; apply approved production grants/TLS and restricted-role HTTPS staging;
+publish account privacy/deletion policy, schedule expired-session/token cleanup and backup
+expiry, monitor delivery/rate limits/shared KDF capacity. No automatic account deletion,
+verified email ownership, durable reset outbox or full manual WCAG certification is claimed.
+No credentials changed, commit/push/merge/deploy/main changes or automatic next-stage work.
+
+### Stage 11 — Regular-user password policy update
+
+Regular-user registration/login/reset now require at least 8 Unicode code points and at
+most 256 UTF-8 bytes. Admin hashing/provisioning keeps its fixed 15-character minimum.
+Separate fixed user/admin hash entry points share the unchanged Argon2id parameters,
+random salts and bounded KDF concurrency. CSRF, cookies, rate limits and sessions unchanged.
+Frontend/backend boundary tests compare identical ASCII, Cyrillic and emoji inputs at
+7/8/14/15 characters and 256/257 bytes; byte limits never truncate passwords.
+KZ/RU hints and password-specific validation errors updated, including safe API error mapping.
+
+Changed backend admin/password.ts, users/schemas.ts, users/routes.ts, user-auth unit/DB tests;
+frontend account/{api.ts,AccountPage.tsx,translations.ts}, user-auth and user-browser tests;
+backend/USER_AUTH.md and this log. No dependencies, migrations or account data changed.
+
+Verification: backend build/lint/typecheck PASS, **125/125 tests PASS**; frontend production
+build/lint/typecheck PASS, **39/39 tests PASS**; dev-only DB suite **16/16 PASS**; real browser
+suite **13/13 PASS** including 7-character rejection, 8-character registration/login/reset,
+and unchanged admin login/list/logout using a separate >=15-character fixture password.
+Release security **15/15 PASS**; source/license/append-only migration and artifact checks PASS.
+Only balaqoldau_dev accessed; migration reruns 0; synthetic fixtures rolled back. Existing
+email-delivery setup requirements and pgpass warning remain. No commit/push/deploy/main changes.
+
+### Stage 11 — Auth visual cleanup (2026-11-13)
+
+Removed visible language controls from login/register/forgot/reset pages and the password
+helper paragraph, including its now-invalid aria-describedby reference. Profile language
+controls, KZ/RU dictionaries, URL-based localization, 8-character/256-byte validation and
+all authentication/security behavior remain unchanged; admin pages untouched.
+Updated AccountPage.tsx, user-browser.mjs and frontend README. Browser tests first failed
+on the old visible controls, then passed with real registration/login/reset/logout/expiry,
+Russian URL localization, responsive/keyboard checks and existing admin login/list/logout.
+Frontend lint/build (including TypeScript) PASS, unit **39/39 PASS**, browser **13/13 PASS**.
+Only dev database synthetic browser fixtures used; rolled back. No commit/push/deploy.
+
+## Stage 12 — User Profile & Saved Programs (2026-11-13)
+
+Implemented personal overview/editor with optional full name and city/region, immutable
+authenticated email, available saved count, search/saved navigation and existing logout.
+Added /profile/saved with pagination, save/remove from results/details, detail/back context,
+honest loading/error/empty/success states and KZ/RU dashboard text. Auth pages still have
+no standalone language controls or password helper. Existing GovTech cards were extracted
+for reuse, not redesigned. Anonymous browsing stays public; save offers a safe local login
+returnTo preserving filters/page, without auto-saving or redirecting before the user chooses.
+
+Shared memory-only user session/CSRF state now serves auth pages, profile and save controls,
+avoiding duplicate independent session bootstrap races. Saved status batches at most 50
+displayed IDs instead of one request/card. Identity changes/401 clear private UI; stale reads
+cancel, mutations do not auto-retry. Unknown profile-write outcomes require explicit reload
+with a discard warning. Legacy localStorage favorites remain readable/explicitly clearable
+at /favorites; no silent import, deletion or new anonymous local saves.
+
+Migration 008 adds nullable full_name/location and user_saved_programs (composite PK, FKs,
+indexes, private grants). Only verified loopback balaqoldau_dev used locally; one migration
+applied, subsequent runs zero. Existing accounts/admin/program data unchanged. Integration
+and browser TEST programs/accounts/sessions/audit fixtures use BEGIN/ROLLBACK and are not
+visible in the persistent catalog. No seeds, database resets/deletions, local role changes,
+external services, children or application tracking. No balaqoldau_db/balaqoldau_test access.
+
+API: GET/PATCH /api/auth/profile; GET /api/auth/saved-programs (page 1–10000, limit 1–50),
+GET /api/auth/saved-programs/status (1–50 UUIDs), POST/DELETE /api/auth/saved-programs/:uuid.
+Strict query/param/body schemas deny user IDs, email edits and extra fields. NFC normalized
+profile fields are optional, <=100 Unicode code points, no C0/C1 controls. Ownership is
+rechecked from token digest/current credential version/expiry in every SQL statement.
+Unique saved keys make repeated saves safe; deletion is owner-scoped/idempotent. Only
+published non-DEMO view records contribute to lists/status/count. Unpublished associations
+stay private; deleted programs cascade saved links. No personal-data logging added.
+
+Files: backend/migrations/008_user_profiles_saved_programs.sql; users/dashboard-{schemas,
+repository,routes}.ts, users/routes.ts/database-security.ts; api/repository.ts exports the
+existing public DTO SELECT; user dashboard unit/DB tests and package.json. Frontend adds
+account/context.ts, UserProvider.tsx, ProfilePage.tsx, SavedProgramsScope.tsx, saved.css,
+components/ProgramCard.tsx; updates account API/auth page/translations/CSS, App routes,
+public parser export and browser/unit tests. Updated root/backend/frontend README,
+USER_AUTH.md, new USER_PROFILE.md, DEPLOYMENT/SECURITY docs and this log. Prior work preserved.
+
+Verification:
+- Backend build/lint/typecheck PASS; **128/128 unit tests PASS**, skipped 0.
+- Frontend production build/lint/typecheck PASS; **42/42 tests PASS**, skipped 0.
+- Dev-only auth/dashboard DB suites **22/22 PASS**, covering ownership/IDOR, 401, CSRF,
+  normalization, email immutability, duplicate saves, per-user isolation, pagination/UUID/
+  injection rejection, unavailable/draft/DEMO/deleted programs, counts, revocation and logout.
+- Real built React/Express/PostgreSQL user/dashboard browser **22/22 PASS**; existing public
+  built-browser **24/24 PASS**. Profile persists, results/detail saves work, removal/back and
+  login return preserve context, unpublished rows disappear, real loading/fault/retry works,
+  labels/contrast/layout checked at 320/375/768/1024/1440; admin login/list/logout preserved.
+  Synthetic dashboard screenshot visually reviewed, stored only in ignored node_modules cache.
+- Release security **15/15 PASS**; source/license/append-only migration and artifact checks
+  PASS. Audit exit 0: backend all/prod 0; frontend prod 0, all 10 existing moderate dev-only
+  findings, high/critical 0. No packages or security gates changed. Existing pgpass and
+  single-transaction test-client parallel-query deprecation warnings remain visible.
+- Initial test fixture tried publishing DEMO and correctly hit existing demo_stays_draft;
+  fixture corrected, constraint preserved. Old anonymous-local-save browser assertion was
+  updated to the explicitly requested login flow, with a legacy-data preservation test.
+- Review found session FOR SHARE incompatible with denied session UPDATE privileges.
+  Fixed by locking only the authorized user row, retaining same-statement session validation;
+  regression asserts no session row lock/UPDATE grant dependency. PostgreSQL docs linked.
+  Positive restricted-role staging certification still pending; no roles created/modified.
+
+Stage 12 implementation/local verification complete. Remaining: apply reviewed migration/
+narrow grants in a real TLS staging environment before production, publish optional-profile/
+saved-interest privacy and authorized deletion/backup policy, retain existing Stage 11 mail/
+cleanup/monitoring obligations, manual assistive-technology testing. No full WCAG or production
+readiness certification. Local manual URLs: http://localhost:5173/profile,
+http://localhost:5173/profile/saved, http://localhost:5173/results, /program/:published-uuid;
+append ?lang=ru for dashboard Russian. No real catalog populated, commit/push/merge/deploy,
+main changes or automatic next-stage work.
+
+### Header language selector refinement (2026-11-13)
+
+Replaced the static public-header indicator with a compact ҚАЗ/РУС menu using the existing
+URL lang locale. Removed the duplicate profile/saved language button group and its obsolete
+CSS; no localization dictionary, auth logic, backend, database or admin permission changes.
+URL locale carries across navigation while preserving filters/hash/route state and explicit
+language choices. No second locale state or locale storage was added. The dropdown supports
+radio-menu ARIA, arrow/Enter navigation, Escape/focus return, outside pointer/focus dismissal
+and remains visible/in-bounds at 320/375/768/1024/1440px.
+
+Changed frontend App.tsx, new components/LanguageSwitcher.tsx, language.ts/language.css,
+ProfilePage.tsx, account.css/refinements.css and language/browser tests. Frontend
+lint/typecheck/production build PASS; **43/43 unit tests PASS**, built-browser **29/29 PASS**.
+Browser auth/profile responses are UI fixtures, so no account/profile database writes were
+needed; real public API smoke remained GET-only. Tests verify language/navigation, preserved
+profile draft input, removal of duplicate controls and five responsive widths. New helper
+test failed before implementation; menu test synchronization was fixed without weakening
+assertions. Full real-auth DB/browser fixture suite was not run for this frontend-only task.
+No commit/push/deploy/main changes.
+
+
+## Stage 13 - Complete KZ/RU localization (2026-11-13)
+
+Completed shared public/admin dictionaries (305 paired messages) and retained the
+existing account/profile dictionary (59 paired messages). Centralized navigation,
+footer, forms, validation, loading/empty/error/success text and admin workflow labels.
+The sole header dropdown uses existing URL lang state; language updates in place,
+internal navigation and refresh preserve it. Admin has the same single main-header
+control. Locale changes no longer remount search forms, discard unsent search input,
+or trigger language-only program requests. Fixed stale admin validation summaries
+and the corrupted missing-taxonomy message. API errors remain safe/localized.
+
+Official program/source/category/region content stays original: no verified translated
+API fields exist. Added explicit content fallback notice and docs/LOCALIZATION.md
+with all 20 audited route patterns, limitations and reproducible commands. Native
+language names/indicators, branding, technical identifiers and canonical search values
+are intentional invariants. Static AST regression audit found no other hardcoded
+Cyrillic UI in active modules; all shared translation references resolve. Unused
+historical demo data is excluded from UI translation and remains unpublished.
+
+Verification: frontend unit tests 48/48 PASS; lint PASS; typecheck PASS; production build PASS.
+Built frontend localization browser suite 57/57 PASS (40 route/language cases plus
+state/workflow checks), including all routes at 375px, immediate switching, one
+switcher, refresh persistence, stored errors, contact success and admin confirmations.
+Existing built browser regression suite 29/29 PASS, including keyboard/focus,
+responsive layouts and computed contrast. The first public browser attempt failed
+startup because inherited local auth settings activated auth database requirements;
+its owned public GET-only smoke server now explicitly disables auth, whose requests
+are fixtures. No application authentication security settings were changed.
+
+Changed frontend App/API-message modules, Home/search/contact/request components,
+admin pages/forms/error mappings, shared i18n/locale helpers, browser/unit tests,
+package script, README files, localization documentation and this progress entry.
+No backend/schema/credential changes, database writes, dependency installation,
+commit/push/deploy or main changes. Localization tests use API fixtures only; the
+existing real smoke performs public GET requests against balaqoldau_dev only.
+Real-auth mutation browser suites were not run because they write DB fixtures.
+Browser-native input dialogs follow browser locale; verified program translations
+and manual assistive-technology testing remain separate work.

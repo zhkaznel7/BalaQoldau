@@ -1,3 +1,5 @@
+import {tr} from '../i18n/ui.ts';
+import {useUi} from '../i18n/useUi.ts';
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api } from '../api/service';
@@ -7,9 +9,10 @@ import { validateContact } from '../api/contact';
 import { Link } from 'react-router-dom';
 import { CircleAlert, CircleCheck, Send } from 'lucide-react';
 
-const labels = { senderName: 'Атыңыз', email: 'Электрондық пошта', message: 'Хабарлама' };
+const labels = { senderName: tr("m239"), email: tr("m027"), message: tr("m240") };
 
 export default function Contact() {
+  useUi();
   const [input, setInput] = useState<ContactInput>({ senderName: '', email: '', message: '' });
   const [errors, setErrors] = useState<Partial<Record<keyof ContactInput, string>>>({});
   const [status, setStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle');
@@ -45,34 +48,34 @@ export default function Contact() {
       await api.contact(fields, controller.signal);
       if (!controller.signal.aborted) {
         setStatus('success');
-        setFeedback('Хабарламаңыз қабылданды. Рақмет!');
+        setFeedback(tr("m241"));
         setInput({ senderName: '', email: '', message: '' });
       }
     } catch (error) {
       if (!controller.signal.aborted) {
         setStatus('error');
         setFeedback(error instanceof ApiError && error.status > 0 && error.status < 500 ? error.message
-          : 'Жеткізілгенін растау мүмкін болмады. Қайта жіберу көшірме хабарлама жасауы мүмкін.');
+          : tr("m242"));
       }
     } finally { if (request.current === controller) request.current = null; }
   }
   return <div className="container inner-page">
-    <div className="page-intro"><h1 id="contact-heading">Бізге хабарласыңыз</h1><p>Сұрағыңызды немесе ұсынысыңызды жіберіңіз.</p></div>
+    <div className="page-intro"><h1 id="contact-heading">{""+tr("m243")+""}</h1><p>{""+tr("m244")+""}</p></div>
     <div className="contact-layout"><form className="search-form contact-form" onSubmit={submit} noValidate aria-labelledby="contact-heading" aria-describedby="contact-privacy" aria-busy={status === 'pending'}>
-      <p id="contact-privacy">Атыңыз, email және хабарламаңыз серверге жіберіледі. ЖСН, медициналық мәліметтер мен құпия деректерді жібермеңіз.</p>
-      <p className="field-hint">Барлық өрісті толтырыңыз.</p>
+      <p id="contact-privacy">{""+tr("m245")+""}</p>
+      <p className="field-hint">{""+tr("m246")+""}</p>
       {Object.keys(errors).length > 0 && <div className="error-summary" role="alert" tabIndex={-1} ref={errorSummary}>
-        <h2>Деректерді тексеріңіз</h2><ul>{(['senderName', 'email', 'message'] as const).filter(name => errors[name]).map(name => <li key={name}><a href={`#contact-${name}`} onClick={event => { event.preventDefault(); document.getElementById(`contact-${name}`)?.focus(); }}>{labels[name]}: {errors[name]}</a></li>)}</ul>
+        <h2>{""+tr("m122")+""}</h2><ul>{(['senderName', 'email', 'message'] as const).filter(name => errors[name]).map(name => <li key={name}><a href={`#contact-${name}`} onClick={event => { event.preventDefault(); document.getElementById(`contact-${name}`)?.focus(); }}>{tr(labels[name])}: {tr(errors[name])}</a></li>)}</ul>
       </div>}
       {(['senderName', 'email', 'message'] as const).map(name => <div className="field" key={name}>
-        <label htmlFor={`contact-${name}`}>{labels[name]}</label>
+        <label htmlFor={`contact-${name}`}>{tr(labels[name])}</label>
         {name === 'message' ? <textarea id={`contact-${name}`} name={name} rows={6} maxLength={2000} required value={input[name]} disabled={status === 'pending'} aria-invalid={Boolean(errors[name])} aria-describedby={`${errors[name] ? `${name}-error ` : ''}contact-message-hint`} onChange={event => update(name, event.target.value)}/>
           : <input id={`contact-${name}`} name={name} type={name === 'email' ? 'email' : 'text'} autoComplete={name === 'email' ? 'email' : 'name'} maxLength={name === 'email' ? 254 : 100} required value={input[name]} disabled={status === 'pending'} aria-invalid={Boolean(errors[name])} aria-describedby={errors[name] ? `${name}-error` : undefined} onChange={event => update(name, event.target.value)}/>}
-        {name === 'message' && <div className="field-hint message-hint"><span id="contact-message-hint">1–2000 таңба.</span><span aria-hidden="true">{[...input.message].length}/2000</span></div>}
-        {errors[name] && <small className="field-error" id={`${name}-error`}>{errors[name]}</small>}
+        {name === 'message' && <div className="field-hint message-hint"><span id="contact-message-hint">{""+tr("m247")+""}</span><span aria-hidden="true">{[...input.message].length}/2000</span></div>}
+        {errors[name] && <small className="field-error" id={`${name}-error`}>{tr(errors[name])}</small>}
       </div>)}
-      <button type="submit" className="button primary" disabled={status === 'pending'}><Send aria-hidden="true" size={18}/>{status === 'pending' ? 'Жіберілуде…' : status === 'error' ? 'Қайта жіберу' : 'Жіберу'}</button>
-      {feedback && <div className={`form-feedback ${status === 'error' ? 'is-error' : 'is-success'}`} role={status === 'error' ? 'alert' : 'status'} aria-atomic="true">{status === 'error' ? <CircleAlert aria-hidden="true" size={22}/> : <CircleCheck aria-hidden="true" size={22}/>}<p>{feedback}</p></div>}
-    </form><aside className="contact-help"><h2>Өтінім туралы сұрағыңыз бар ма?</h2><p>Бұл форма — BalaQoldau-ға хабарласу үшін. Бағдарламаға өтінім беру тәртібін оның дереккөзінен тексеріңіз.</p><Link className="inline-link" to="/results">Бағдарламаларды қарау</Link>{status === 'pending' && <p role="status">Хабарлама жіберілуде…</p>}</aside></div>
+      <button type="submit" className="button primary" disabled={status === 'pending'}><Send aria-hidden="true" size={18}/>{status === 'pending' ? tr("m248") : status === 'error' ? tr("m249") : tr("m250")}</button>
+      {feedback && <div className={`form-feedback ${status === 'error' ? 'is-error' : 'is-success'}`} role={status === 'error' ? 'alert' : 'status'} aria-atomic="true">{status === 'error' ? <CircleAlert aria-hidden="true" size={22}/> : <CircleCheck aria-hidden="true" size={22}/>}<p>{tr(feedback)}</p></div>}
+    </form><aside className="contact-help"><h2>{""+tr("m251")+""}</h2><p>{""+tr("m252")+""}</p><Link className="inline-link" to="/results">{""+tr("m253")+""}</Link>{status === 'pending' && <p role="status">{""+tr("m254")+""}</p>}</aside></div>
   </div>;
 }

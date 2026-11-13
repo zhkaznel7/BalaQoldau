@@ -1,3 +1,4 @@
+import {tr} from '../i18n/ui.ts';
 export interface Taxonomy { id: string; slug: string; name: string }
 export interface Program {
   id: string; slug: string; category: string; title: string; description: string;
@@ -10,15 +11,15 @@ export interface ContactInput { senderName: string; email: string; message: stri
 export class ApiError extends Error {
   readonly status: number;
   constructor(status: number, message?: string) {
-    super(message ?? (status === 400 ? 'Іздеу не форма деректерін тексеріңіз.'
-      : status === 404 ? 'Бағдарлама табылмады немесе жарияланбаған.'
-      : status === 429 ? 'Сұрау шегінен асты. Біраз уақыттан кейін қайталаңыз.'
-      : 'Сервермен байланысу мүмкін болмады. Қайта көріңіз.'));
+    super(message ?? (status === 400 ? tr("m145")
+      : status === 404 ? tr("m146")
+      : status === 429 ? tr("m147")
+      : tr("m148")));
     this.status = status;
   }
 }
 export const isProgramId = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
-const invalid = (): never => { throw new ApiError(0, 'Сервер деректерінің пішімі дұрыс емес.'); };
+const invalid = (): never => { throw new ApiError(0, tr("m149")); };
 function record(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : invalid();
 }
@@ -32,7 +33,7 @@ function https(value: unknown): string {
   try { const url = new URL(result); if (url.protocol === 'https:' && !url.username && !url.password) return result; } catch { /* Reject unsafe links. */ }
   return invalid();
 }
-function parseProgram(value: unknown): Program {
+export function parseProgram(value: unknown): Program {
   const p = record(value);
   if (p.isDemo !== false || (p.status !== undefined && p.status !== 'published')) return invalid();
   const id = text(p.id);
@@ -61,7 +62,7 @@ function apiBase(value: string): string {
     const url = new URL(base);
     if (['http:', 'https:'].includes(url.protocol) && !url.username && !url.password && !url.search && !url.hash) return base;
   } catch { /* Only public HTTP API configuration is accepted. */ }
-  throw new ApiError(0, 'API мекенжайы дұрыс бапталмаған.');
+  throw new ApiError(0, tr("m150"));
 }
 export function createApi(baseUrl = '/api', fetcher: typeof fetch = globalThis.fetch) {
   const base = apiBase(baseUrl);

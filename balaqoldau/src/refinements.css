@@ -252,7 +252,6 @@ footer { border-top: 1px solid var(--line); background: #f1f5f9; margin-top: 32p
   .logo { font-size: 22px; }
   .logo-symbol { width: 30px; height: 34px; margin-right: 8px; }
   .nav-actions { gap: 8px; }
-  .language { display: none; }
   .hero h1 { font-size: 26px; }
   .hero-copy > p { font-size: 16px; }
   .application-aside,.search-aside,.contact-help { padding: 16px; }

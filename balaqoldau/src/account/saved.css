@@ -1,0 +1,5 @@
+.saved-control{position:relative;display:inline-flex;flex-shrink:0}
+.saved-feedback{position:absolute;right:0;top:calc(100% + 6px);z-index:3;width:min(260px,70vw);padding:12px;background:#fff;color:#17324f;border:1px solid #697f95;box-shadow:0 3px 9px #17324f1a;font-size:.875rem;line-height:1.5;overflow-wrap:anywhere;text-align:left}
+.saved-feedback a,.saved-feedback button{display:inline-flex;align-items:center;min-height:44px;text-decoration:underline;color:#174d80}
+.saved-feedback button{border:0;background:transparent;cursor:pointer;font:inherit}
+.saved-control :is(a,button):focus-visible{outline:3px solid #9b6600;outline-offset:3px}

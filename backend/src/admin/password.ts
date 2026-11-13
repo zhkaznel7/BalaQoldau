@@ -12,11 +12,14 @@ async function derive(password: string, salt: Buffer): Promise<Buffer> {
     });
   } finally { active--; }
 }
-export async function hashPassword(password: string): Promise<string> {
-  if ([...password].length < 15 || Buffer.byteLength(password) > 256) throw new Error('Invalid password');
+async function hashWithMinimum(password: string, minimum: 8 | 15): Promise<string> {
+  if ([...password].length < minimum || Buffer.byteLength(password) > 256) throw new Error('Invalid password');
   const salt = randomBytes(16);
   return prefix + salt.toString('base64') + '$' + (await derive(password, salt)).toString('base64');
 }
+// Fixed entry points: callers cannot lower the admin provisioning policy.
+export function hashPassword(password: string): Promise<string> { return hashWithMinimum(password, 15); }
+export function hashUserPassword(password: string): Promise<string> { return hashWithMinimum(password, 8); }
 export async function verifyPassword(hash: string | undefined, password: string): Promise<boolean> {
   const parts = hash?.startsWith(prefix) ? hash.slice(prefix.length).split('$') : [];
   const valid = parts.length === 2 && /^[A-Za-z0-9+/]{22}==$/.test(parts[0] ?? '') && /^[A-Za-z0-9+/]{43}=$/.test(parts[1] ?? '');

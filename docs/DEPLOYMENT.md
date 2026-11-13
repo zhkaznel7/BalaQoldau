@@ -1,5 +1,29 @@
 # Deployment runbook — Stage 7
 
+Stage 12 additionally requires migration 008 and the narrow profile/saved-table grants in
+[USER_PROFILE.md](../backend/USER_PROFILE.md). Apply using the migrator before starting the
+new runtime; missing/unsafe privileges fail the existing production startup gate. No local
+roles were changed. Keep optional profile/saved-interest privacy policy and authorized erasure
+procedures current. Rollback application/config only, preserve additive migrations and data.
+
+## Stage 11 — User account launch gate
+
+See [USER_AUTH.md](../backend/USER_AUTH.md) for migration 007, exact same-origin HTTPS,
+independent user cookies/CSRF, production runtime grants and reset-delivery configuration.
+USER_AUTH_ENABLED stays false until the operator opts in. No local roles or credentials
+were changed. Registration does not verify email ownership and must not confer eligibility
+or admin rights. Publish an accurate account privacy/deletion policy before collecting data.
+
+Before enabling recovery, configure an existing trusted local sendmail-compatible MTA,
+sender authentication, TLS, queue monitoring and actual delivery/recovery drills. No live
+email was configured/tested. Application dispatch is best effort, not a durable outbox;
+HTTP acceptance never asserts mail delivery. Arrange expired-session/token cleanup and
+backup expiry. Verify restricted-role startup and both user/admin cookie separation over
+real HTTPS; assess shared KDF capacity and multi-instance ingress rate limiting.
+Rollback: disable USER_AUTH_ENABLED and revert application release; preserve additive 007
+and account data. Do not drop/reset tables or undo checksummed migrations. Mail tokens
+expire server-side; an operator must authorize any exceptional revocation/deletion.
+
 Бұл дайындық нұсқаулығы; deploy/role creation орындалған жоқ. `example.com` домендері
 нақты hosting/бағдарлама деректері емес. Topology: **бір host-та Nginx TLS → loopback
 Express бір процесі → жеке PostgreSQL TLS**; frontend статикалық `dist` сол origin-де.
@@ -192,6 +216,27 @@ Monitor audit availability, temporary account-budget exhaustion, expiry-table gr
 without logging names/emails/IP/passwords/tokens. Define authorized password-reset/temporary-lock
 recovery procedures. A DB owner can defeat audit triggers: separate privileged credentials and
 external backup/log access controls remain mandatory. No deployment or scheduler is installed here.
+Stage 10.1 additionally requires [program API migration/grants](../backend/PROGRAM_API.md).
+Apply 006 using the migrator and confirm program/audit column grants plus enabled published-
+deletion guard before enabling runtime. No program DELETE/TRUNCATE grant. Verify author/editor,
+reviewer and publisher separation and revision conflicts in staging; approval is a human
+verification action, not a claim of government endorsement. No real records are seeded/published.
 After disabling and re-enabling an account, old cookies remain invalid; require a new login.
 Audit failure returns 503 rather than claiming success; failed logout must be retried, and
 the operator may explicitly revoke affected sessions through the authorized recovery procedure.
+
+## Stage 10.2 admin frontend
+
+Serve `/admin/*` with the existing SPA fallback and `/api/admin/*` through the same HTTPS
+ingress. VITE_ADMIN_API_BASE_URL is a root-relative public path, default /api/admin; do not
+configure a separate credentialed cross-origin service or expose DB/auth secrets as VITE_*.
+Keep exact ADMIN_ORIGIN, trusted proxy overwrite rules, Secure/HttpOnly/SameSite cookies,
+no-store and all backend RBAC/CSRF/revision/audit gates. Admin JS availability is not authorization.
+Verify the new private search/taxonomy read calls under real runtime column grants before launch.
+
+Run frontend build/lint/typecheck/unit, public browser QA and real test-DB admin browser suite
+sequentially with backend integration checks. The admin suite uses synthetic rollback-only
+fixtures and an isolated Chrome profile, not dev accounts. Keep real privileged identities and
+passwords out of CLI arguments/screenshots/logs. Test actual TLS cookies/401/403/409/logout and
+keyboard/assistive technology in staging. Local browser checks do not certify full WCAG or
+production readiness. No deployment or new credentials are configured by this stage.

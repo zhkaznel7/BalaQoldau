@@ -1,4 +1,11 @@
-# BalaQoldau backend — Stage 9.3
+# BalaQoldau backend — Stage 10.1
+
+## Stage 10.1 — Admin Program CRUD
+
+[API fields, workflow, RBAC, migrations/grants and testing](PROGRAM_API.md).
+Private program list/create/read/PATCH and submit/approve/reject/publish/unpublish are
+implemented; UI and DELETE are not. Apply migration 006 before enabling this version.
+The program grants extend (and do not replace) the Stage 9 runtime privilege requirements.
 
 ## Stage 9.3 — Security hardening
 
@@ -102,6 +109,15 @@ distinguish Editor/Reviewer/Admin users. Keep raw audit SQL access restricted.
 Migration 002/001 are immutable; apply 003 before enabling auth. Integration tests use only
 balaqoldau_test with transaction rollback. Admin UI, user CRUD, program CRUD and RBAC UI
 are not part of this stage.
+
+## Stage 11 — User authentication
+
+Stage 12: [profile/saved-program API](USER_PROFILE.md), additive migration 008, optional
+profile fields and account-backed saved programs. Run `npm run test:user-db` for both suites.
+
+Stage 11 adds separate regular-user authentication. See [USER_AUTH.md](USER_AUTH.md) for
+the API, migration 007, KZ/RU forms, local enablement, optional delivery and runtime grants.
+Current dev-only verification command: `npm run test:user-db`. Admin RBAC stays independent.
 
 ## Stage 9.1 — Admin authentication
 

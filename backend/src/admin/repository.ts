@@ -55,7 +55,7 @@ export function adminRepository(db: Database) {
           SELECT 'audit.read',id,'audit:read' FROM authorized RETURNING id)
         SELECT EXISTS(SELECT 1 FROM logged) AS authorized,
           COALESCE((SELECT json_agg(page) FROM (SELECT id,created_at AS "createdAt",event,actor_id AS "actorId",target_id AS "targetId",
-            permission,previous_role AS "previousRole",new_role AS "newRole" FROM balaqoldau.admin_audit_log
+            permission,previous_role AS "previousRole",new_role AS "newRole",previous_status AS "previousStatus",new_status AS "newStatus" FROM balaqoldau.admin_audit_log
             WHERE EXISTS(SELECT 1 FROM logged) ORDER BY created_at DESC,id DESC LIMIT $2 OFFSET $3) page),'[]') AS data`,
       [tokenHash(token), limit, offset])).rows[0];
     },

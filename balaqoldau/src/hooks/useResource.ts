@@ -1,3 +1,4 @@
+import {tr} from '../i18n/ui.ts';
 import { useCallback, useEffect, useState } from 'react';
 export function useResource<T>(key: string, loader: (key: string, signal: AbortSignal) => Promise<T>) {
   const [attempt, setAttempt] = useState(0);
@@ -7,7 +8,7 @@ export function useResource<T>(key: string, loader: (key: string, signal: AbortS
     loader(key, controller.signal).then(data => {
       if (!controller.signal.aborted) setResult({ key, attempt, data, error: null });
     }).catch((error: unknown) => {
-      if (!controller.signal.aborted) setResult({ key, attempt, data: null, error: error instanceof Error ? error : new Error('Деректер жүктелмеді.') });
+      if (!controller.signal.aborted) setResult({ key, attempt, data: null, error: error instanceof Error ? error : new Error(tr("m304")) });
     });
     return () => controller.abort();
   }, [key, attempt, loader]);
