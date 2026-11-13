@@ -1,5 +1,7 @@
 # BalaQoldau — GovTech порталы және әкімші/пайдаланушы интерфейсі
 
+Stage 16 adds `/admin/overview`, `/admin/reports`, verification history/checks, expanded program filters and a public incorrect-information report form. All new UI uses the existing Kazakh/Russian dictionary and header switcher. [Contracts and manual QA](../backend/VERIFICATION.md).
+
 Stage 15: `/profile/children` — бірнеше бала профилін құру, өңдеу, растаумен жою және
 жеке ұсыныстар. Жас/өңір public URL-ге көшірілмейді; профильге сезімтал отбасы мәртебесі
 сақталмайды. [API, құпиялық және қолмен тексеру](../backend/CHILD_PROFILES.md).
@@ -293,3 +295,5 @@ Windows PowerShell орындау саясаты npm скриптін бұғат
 Статикалық хостингте React Router маршруттарын тікелей ашу үшін барлық қолданба маршруттарын `index.html` файлына бағыттайтын SPA fallback орнатыңыз.
 
 </details>
+
+Admin session regressions (built frontend, owned Chrome, API fixtures only; no database): `node tests/admin-session-browser.mjs` from this directory. For StrictMode testing against an owned loopback Vite dev server, set ADMIN_SESSION_TEST_ORIGIN=http://127.0.0.1:PORT. The same 18 KZ/RU scenarios cover navigation, refresh, focus bursts, temporary failures, Retry-After recovery, 401 and 403. Unit tests run through the existing npm test command.

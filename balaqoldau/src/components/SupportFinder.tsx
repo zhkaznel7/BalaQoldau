@@ -7,6 +7,8 @@ import { ChevronDown, Search } from 'lucide-react';
 import { useCatalog } from '../hooks/useCatalog';
 import { resultsUrl } from '../api/navigation';
 import { CatalogStatus } from './RequestState';
+import {categoryName} from '../api/categories';
+import {referenceName} from '../api/reference-data';
 
 export default function SupportFinder() {
   useUi();
@@ -28,13 +30,13 @@ export default function SupportFinder() {
     <div className="finder-fields">
       <label className="field"><span>{""+tr("m181")+""}</span><div className="select-wrap">
         <select name="region" value={region} disabled={catalog.loading || Boolean(catalog.error)} onChange={e => setRegion(e.target.value)}>
-          <option value="">{""+tr("m182")+""}</option>{catalog.regions.map(item => <option key={item.id} value={item.slug}>{item.name}</option>)}
+          <option value="">{""+tr("m182")+""}</option>{catalog.regions.map(item => <option key={item.id} value={item.slug}>{referenceName('regions',item.slug,item.name)}</option>)}
         </select><ChevronDown aria-hidden="true" size={16} />
       </div></label>
       <label className="field"><span>{""+tr("m183")+""}</span><input name="age" type="number" min="0" max="17" step="1" placeholder={tr("m184")} value={age} onChange={e => setAge(e.target.value)} /></label>
       <label className="field"><span>{""+tr("m185")+""}</span><div className="select-wrap">
         <select name="category" value={category} disabled={catalog.loading || Boolean(catalog.error)} onChange={e => setCategory(e.target.value)}>
-          <option value="">{""+tr("m303")+""}</option>{catalog.categories.map(item => <option key={item.id} value={item.slug}>{item.name}</option>)}
+          <option value="">{""+tr("m303")+""}</option>{catalog.categories.map(item => <option key={item.id} value={item.slug}>{categoryName(item.slug,item.name)}</option>)}
         </select><ChevronDown aria-hidden="true" size={16} />
       </div></label>
     </div>

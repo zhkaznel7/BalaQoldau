@@ -25,7 +25,9 @@ test('private child CRUD and recommendations: ownership, consent, quota and matc
     const base='http://127.0.0.1:'+server.address().port+'/api';
     const call=(path,user=users[0],method='GET',body,csrf=true)=>fetch(base+'/auth'+path,{method,headers:{Origin:origin,...(user?{Cookie:'balaqoldau_user='+user.token,...(csrf?{'X-CSRF-Token':user.csrf}:{})}:{}),...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})});
     const input={nickname:'TEST nickname',age:6,region:suffix,preferences:[suffix]};let child,second;
+    const demoRegion='demo-'+suffix;await db.query('INSERT INTO balaqoldau.regions(slug,name) VALUES($1,$2)',[demoRegion,'DEMO fixture']);
     await t.test('authentication, CSRF, strict input and supported taxonomy are required',async()=>{
+      assert.equal((await call('/children',users[0],'POST',{...input,region:demoRegion})).status,400);
       for(const path of ['/children','/children/options'])assert.equal((await call(path,null)).status,401);
       assert.equal((await call('/children',null,'POST',input)).status,401);
       assert.equal((await call('/children',users[0],'POST',input,false)).status,403);
@@ -33,6 +35,7 @@ test('private child CRUD and recommendations: ownership, consent, quota and matc
         const response=await call('/children',users[0],'POST',{...input,...extra});assert.equal(response.status,400);assert.ok(!(await response.text()).includes('private'));
       }
       const options=await call('/children/options');assert.equal(options.headers.get('cache-control'),'no-store');const data=(await options.json()).data;
+      assert.equal(data.regions.some(r=>r.slug===demoRegion),false);
       assert.ok(data.regions.some(r=>r.slug===suffix));assert.ok(data.categories.some(r=>r.slug===suffix));assert.equal('familyCategories'in data,false);
     });
     await t.test('multiple children and minimal responses belong exclusively to the active parent',async()=>{

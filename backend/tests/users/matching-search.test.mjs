@@ -32,14 +32,14 @@ test('anonymous matching SQL, pagination and visibility with rolled-back TEST fi
     const get=path=>fetch(base+path);
     await t.test('anonymous access, combined criteria, stable global order before pagination',async()=>{
       const all=[];
-      for(let page=1;page<=3;page++){
+      for(let page=1;page<=2;page++){
         const response=await get('/program-matches?'+query+'&page='+page);assert.equal(response.status,200);assert.equal(response.headers.get('cache-control'),'no-store');
-        const result=await response.json();assert.equal(result.pagination.total,5);all.push(...result.data);
+        const result=await response.json();assert.equal(result.pagination.total,4);all.push(...result.data);
       }
-      assert.deepEqual(all.map(p=>p.matching.status),['MATCH','MATCH','POSSIBLE','NOT_MATCH','NOT_MATCH']);
+      assert.deepEqual(all.map(p=>p.matching.status),['MATCH','MATCH','POSSIBLE','NOT_MATCH']);
       assert.deepEqual(all.map(p=>p.id),[...all].reverse().sort((a,b)=>compareMatches(a,b,{age:6,region:slug,need:slug})).map(p=>p.id));
       assert.deepEqual(all.slice(0,2).map(p=>p.id),[ids.first,ids.tie].sort());
-      assert.equal((await (await get('/programs?category='+slug+'&age=6&region='+slug)).json()).pagination.total,4,'legacy filters remain hard filters');
+      assert.equal((await (await get('/programs?category='+slug+'&age=6&region='+slug)).json()).pagination.total,3,'legacy filters remain hard filters');
       for(const input of [{},{age:0},{age:5,region:slug,need:slug},{age:10,region:slug,need:slug},{age:17,region:'other',need:slug},{age:6,region:slug,need:'other'},{age:6,region:'other',need:'other'}]){
         const params=new URLSearchParams({category:slug,limit:'50',...Object.fromEntries(Object.entries(input).map(([k,v])=>[k,String(v)]))});
         const items=(await (await get('/program-matches?'+params)).json()).data;
@@ -53,7 +53,7 @@ test('anonymous matching SQL, pagination and visibility with rolled-back TEST fi
       assert.equal(mismatch.data.sourceUrl,'https://example.com/test');
     });
     await t.test('drafts, DEMO and nonexistent records remain hidden',async()=>{
-      for(const id of [ids.draft,ids.demo,randomUUID()])assert.equal((await get('/program-matches/'+id)).status,404);
+      for(const id of [ids.draft,ids.demo,ids.expired,randomUUID()])assert.equal((await get('/program-matches/'+id)).status,404);
       assert.equal((await (await get('/family-categories')).json()).data.some(p=>p.slug===slug),true);
     });
     await t.test('strict validation rejects injection, arrays, profile fields and unbounded queries',async()=>{

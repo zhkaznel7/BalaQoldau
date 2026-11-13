@@ -76,8 +76,14 @@ export function userRouter(config: Config, database?: Database, delivery: ResetD
         throw new HttpError(403, 'CSRF_FORBIDDEN', 'Request is not allowed.');
       }
       if (!request.is('application/json')) throw new HttpError(415, 'UNSUPPORTED_MEDIA_TYPE', 'JSON required.');
-      const invalid = (passwordProblem = false) => new HttpError(400, passwordProblem ? 'PASSWORD_POLICY' : 'VALIDATION_ERROR',
-        passwordProblem ? 'Password must contain at least 8 characters and at most 256 UTF-8 bytes.' : 'Invalid request input.');
+      const invalid = (passwordProblem = false) => {
+        const password:unknown=request.body?.password;
+        if(passwordProblem&&typeof password==='string') {
+          if([...password].length<8)return new HttpError(400,'PASSWORD_TOO_SHORT','Password must contain at least 8 characters.');
+          if(Buffer.byteLength(password)>256)return new HttpError(400,'PASSWORD_TOO_LONG','Password is too long. Please enter a shorter password.');
+        }
+        return new HttpError(400,passwordProblem?'PASSWORD_POLICY':'VALIDATION_ERROR','Invalid request input.');
+      };
       if (request.path === '/logout') {
         if (!emptyInput.safeParse(request.body).success) throw invalid();
         await repository.logout(token); response.clearCookie(name, cookie).status(204).end(); return;

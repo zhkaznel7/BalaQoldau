@@ -1,5 +1,7 @@
 # Stage 10.1 — Admin program API
 
+Stage 16 extends this contract with six states, explicit source attestations, archive/reopen/recheck, history, dashboard, date/category/region filters and report moderation. [Current authoritative workflow, fields, endpoints and runtime grants](VERIFICATION.md). The migration 006 grant list below is historical: also apply migrations 009 and 011 and the documented column-level grants.
+
 Stage 14 adds optional draft field `eligibilityComplete` (boolean, default false for
 new/legacy rows). It is readable on admin programs, editable with the same draft-only
 RBAC, CSRF and version protection, and takes effect for public matching only after
@@ -19,14 +21,14 @@ No registration or parent accounts. Stage 10.2 frontend uses this API; no DELETE
 | GET /programs/:uuid | All known admin roles; 200 or 404 |
 | PATCH /programs/:uuid | Editor: own draft only; Admin: any draft; requires version |
 | POST /programs/:uuid/submit | Editor: own draft; Admin: any draft; requires version |
-| POST /programs/:uuid/approve | Reviewer/Admin, never author or submitter; requires version |
-| POST /programs/:uuid/reject | Reviewer: another author's review; Admin: any review/verified record back to draft |
+| POST /programs/:uuid/approve | Reviewer/Admin, never author or submitter; requires version and three explicit review attestations |
+| POST /programs/:uuid/reject | Reviewer: another author's review; Admin: review/verified record to rejected; notes required |
 | POST /programs/:uuid/publish | Admin only; verified → published |
 | POST /programs/:uuid/unpublish | Admin only; published → draft, invalidates approval |
 
 The table uses paths relative to `/api/admin`. Mutation bodies are strict JSON and require
 exact Origin plus session-bound X-CSRF-Token. Authenticated reads may see private/draft/DEMO
-records; public endpoints still use unchanged `published_programs` view: published AND NOT DEMO.
+records; public endpoints use the security-barrier `published_programs` view: published, non-DEMO, unexpired and not flagged for source rechecking.
 
 Stage 10.2 read extensions: q (trimmed 1–200 characters) searches title/description/slug;
 SQL wildcards/backslashes are literal escaped parameters, not expressions. Taxonomy endpoint
@@ -49,15 +51,15 @@ are rejected. Partial age updates are checked against the stored remaining bound
 Program JSON returns camelCase fields, status/version, actor UUIDs, timestamps and slug arrays.
 List uses `{data,pagination:{page,limit,total,totalPages}}`; other successes use `{data}`.
 
-Workflow action bodies contain **only `{version}`**. Approval maps to the existing `verified`
+Stage 16 action bodies require `{version}` plus action-specific safeguards: approval needs three review attestations, rejection/recheck needs notes, and publish/archive needs `confirm:true`. Submit/unpublish/reopen still accept only version. Approval maps to the existing `verified`
 status (not a new public state). Submit requires non-DEMO and source URL/name. Reviewer
 approval explicitly represents a human source/eligibility/deadline check, not automatic
 government verification. Server supplies verifiedAt only on approval. Publishing requires
 recorded reviewer provenance; legacy verified records without it must be returned to draft
-via Admin reject and reviewed again. No fabricated official sources/programs are seeded.
+via Admin reject, explicit reopen and independent review again. No fabricated official sources/programs are seeded.
 
 Draft edits clear previous submission/approval metadata. Records under review, verified or
-published cannot be patched: reject/unpublish first. Every successful mutation increments
+published cannot be patched: reject then reopen, or unpublish first. Every successful mutation increments
 version; stale revisions and invalid transitions return 409 without changes. Actor/session/
 credential version is revalidated inside the transaction and user/program rows are locked.
 Editor cannot edit/submit another author's drafts; legacy owner-null drafts are Admin-only
@@ -105,3 +107,5 @@ deadlock. All assertions run, including concurrent revision requests within the 
 test. Fixtures/triggers roll back; only append-only migrations persist. Pool commit/rollback
 path is separately unit-tested; multi-connection/load tests under real staging grants are
 still required. No dev/production program was created or published during implementation.
+
+Reference data update: [20 Kazakhstan regions, neutral support needs, localization and migration 013](REFERENCE_DATA.md). Nationwide is stored as 20 explicit region associations, so API payloads and matching contracts do not change. Real draft create/PATCH and approval reject DEMO category/region/support references. DEMO drafts remain private; no reference is automatically assigned to an existing program.

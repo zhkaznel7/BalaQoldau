@@ -118,3 +118,7 @@ they target balaqoldau_test. Only GitHub Actions uses its existing isolated loop
 balaqoldau_test service for the new dedicated CI step; existing gates are unchanged.
 No GitHub CI execution/push is claimed. Browser tests need installed Chrome or CHROME_PATH
 and an owned profile. Automated layout/contrast/keyboard tests are not full WCAG certification.
+
+## Friendly password validation messages
+
+Regular-user rules remain >=8 Unicode code points and <=256 UTF-8 bytes; admin minimum remains 15. Registration/login/reset now return PASSWORD_TOO_SHORT or PASSWORD_TOO_LONG for those boundary failures, with PASSWORD_POLICY retained as a generic malformed-password fallback. The frontend maps codes to Kazakh/Russian messages without byte/encoding jargon or raw backend details. Invalid credentials remain a generic 401 independent of account existence. No hashing/session/CSRF/rate-limit changes.

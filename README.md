@@ -1,5 +1,7 @@
 # BalaQoldau
 
+Stage 16: [admin verification, expiry, reporting, migration 011 and launch requirements](backend/VERIFICATION.md). Existing sessions, RBAC and matching are reused; no real catalog is populated.
+
 Қазақ тіліндегі әлеуметтік қолдауды іздеу платформасы: React/TypeScript/Vite frontend,
 Express/TypeScript API, PostgreSQL. Public API тек `published AND NOT is_demo` деректерін
 береді. Жергілікті DEMO draft-тар нақты мүмкіндік ретінде көрсетілмейді.
@@ -26,3 +28,7 @@ Stage 8.1: `/api/health` — lightweight liveness, `/api/ready` — bounded DB r
 Production міндетті DB/config тексеруінен өтпей HTTP порт ашпайды. Нақты startup/shutdown
 келісімшарты backend README ішінде. Production іске қосылған жоқ;
 жария іске қосу алдындағы қолмен орындалатын міндеттер deployment нұсқаулығында.
+
+Public catalog UX fixes: apply additive migration 012_catalog_categories.sql before rollout. The stable category slugs are benefits, free-courses, grants and clubs; these navigation labels exist without published programs. No program data is seeded. Public GET /api/categories additionally includes these four taxonomy entries while preserving published-only visibility for other taxonomy. Existing names are never overwritten.
+
+Admin reference data update: [20 Kazakhstan regions, nationwide selection, localized support-needs taxonomy and migration safety](backend/REFERENCE_DATA.md). Apply additive migration 013 before rollout; it creates reference rows only, never programs or eligibility rules.

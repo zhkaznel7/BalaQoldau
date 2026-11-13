@@ -1,5 +1,7 @@
 import type { Pool } from 'pg';
 import type { ContactInput, Pagination, ProgramFilters } from './schemas.ts';
+import {createHash} from 'node:crypto';
+import {HttpError} from '../middleware/errors.ts';
 
 export type Database = Pick<Pool, 'query'>;
 export interface Program {
@@ -50,22 +52,31 @@ export function createRepository(db: Database) {
     },
     categories(pagination: Pagination) {
       return paged<Taxonomy>(db, `SELECT c.id::text AS id,c.slug,c.name FROM balaqoldau.categories c
-        WHERE EXISTS (SELECT 1 FROM balaqoldau.published_programs p WHERE p.category_id=c.id)`, [], pagination);
+        WHERE c.slug IN ('benefits','free-courses','grants','clubs')
+          OR EXISTS (SELECT 1 FROM balaqoldau.published_programs p WHERE p.category_id=c.id)`, [], pagination);
     },
     regions(pagination: Pagination) {
       return paged<Taxonomy>(db, `SELECT r.id::text AS id,r.slug,r.name FROM balaqoldau.regions r
-        WHERE EXISTS (SELECT 1 FROM balaqoldau.program_regions pr JOIN balaqoldau.published_programs p
-          ON p.id=pr.program_id WHERE pr.region_id=r.id)`, [], pagination);
+        WHERE r.slug !~* '^demo(-|$)' AND r.name !~* '^DEMO' AND (r.slug IN
+          ('abay','akmola','aktobe','almaty-region','atyrau','west-kazakhstan','zhambyl','zhetisu','karaganda','kostanay','kyzylorda','mangystau','pavlodar','north-kazakhstan','turkistan','ulytau','east-kazakhstan','astana','almaty-city','shymkent')
+          OR EXISTS (SELECT 1 FROM balaqoldau.program_regions pr JOIN balaqoldau.published_programs p
+          ON p.id=pr.program_id WHERE pr.region_id=r.id))`, [], pagination);
     },
     familyCategories(pagination:Pagination){
       return paged<Taxonomy>(db,`SELECT f.id::text AS id,f.slug,f.name FROM balaqoldau.family_categories f
-        WHERE EXISTS(SELECT 1 FROM balaqoldau.program_family_categories pf JOIN balaqoldau.published_programs p
-          ON p.id=pf.program_id WHERE pf.family_category_id=f.id)`,[],pagination);
+        WHERE f.slug !~* '^demo(-|$)' AND f.name !~* '^DEMO' AND (f.slug IN ('education-support','creative-development','sports-activities')
+          OR EXISTS(SELECT 1 FROM balaqoldau.program_family_categories pf JOIN balaqoldau.published_programs p
+          ON p.id=pf.program_id WHERE pf.family_category_id=f.id))`,[],pagination);
     },
     async contact(input: ContactInput) {
-      const result = await db.query<{ id: string }>(`INSERT INTO balaqoldau.contact_messages(sender_name,email,message)
-        VALUES ($1,$2,$3) RETURNING id`, [input.senderName, input.email, input.message]);
+      const digest=input.submissionId?createHash('sha256').update(JSON.stringify([input.senderName,input.email,input.message])).digest('hex'):null;
+      const result = await db.query<{ id: string }>(`INSERT INTO balaqoldau.contact_messages(sender_name,email,message,submission_id,submission_digest)
+        VALUES ($1,$2,$3,$4,$5) ON CONFLICT(submission_id) DO NOTHING RETURNING id`, [input.senderName, input.email, input.message,input.submissionId??null,digest]);
       const row = result.rows[0];
+      if(!row&&input.submissionId){
+        const existing=(await db.query<{id:string}>('SELECT id FROM balaqoldau.contact_messages WHERE submission_id=$1 AND submission_digest=$2',[input.submissionId,digest])).rows[0];
+        if(existing)return existing;throw new HttpError(409,'CONTACT_CONFLICT','Submission identifier cannot be reused.');
+      }
       if (!row) throw new Error('Missing database result');
       return row;
     },

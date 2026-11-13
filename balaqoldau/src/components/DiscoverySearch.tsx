@@ -6,6 +6,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Search, ArrowRight, ChevronDown } from 'lucide-react';
 import { useCatalog } from '../hooks/useCatalog';
 import { updateFilters } from '../api/navigation';
+import {referenceName} from '../api/reference-data';
 
 export default function DiscoverySearch() {
   useUi();
@@ -20,7 +21,7 @@ export default function DiscoverySearch() {
     <label className="discovery-term"><Search aria-hidden="true" size={20} /><span className="sr-only">{""+tr("m256")+""}</span>
       <input name="q" type="search" maxLength={200} placeholder={tr("m257")} value={term} onChange={e => setTerm(e.target.value)} />
     </label>
-    <label className="discovery-region"><span className="sr-only">{""+tr("m258")+""}</span><select name="region" value={params.get('region') || ''} disabled={catalog.loading || Boolean(catalog.error)} onChange={e => setParams(updateFilters(params, { region: e.target.value }))}><option value="">{""+tr("m182")+""}</option>{catalog.regions.map(region => <option key={region.id} value={region.slug}>{region.name}</option>)}</select><ChevronDown aria-hidden="true" size={16} /></label>
+    <label className="discovery-region"><span className="sr-only">{""+tr("m258")+""}</span><select name="region" value={params.get('region') || ''} disabled={catalog.loading || Boolean(catalog.error)} onChange={e => setParams(updateFilters(params, { region: e.target.value }))}><option value="">{""+tr("m182")+""}</option>{catalog.regions.map(region => <option key={region.id} value={region.slug}>{referenceName('regions',region.slug,region.name)}</option>)}</select><ChevronDown aria-hidden="true" size={16} /></label>
     <button type="submit" className="button primary">{""+tr("m059")+" "}<ArrowRight aria-hidden="true" size={18} /></button>
   </form>;
 }

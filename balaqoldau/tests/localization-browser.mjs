@@ -7,6 +7,8 @@ import {tr} from '../src/i18n/ui.ts';
 import {authText} from '../src/account/translations.ts';
 import {kk} from '../src/i18n/kk.ts';
 import {ru} from '../src/i18n/ru.ts';
+import {regionSlugs} from '../src/api/reference-data.ts';
+import {categorySlugs} from '../src/api/categories.ts';
 import {evaluateMatch} from '../../backend/dist/matching/engine.js';
 
 const cwd=fileURLToPath(new URL('../',import.meta.url));
@@ -17,10 +19,14 @@ const id='11111111-1111-4111-8111-111111111111';
 const program={id,slug:'test-original',title:'SOURCE original title',description:'SOURCE original description',category:'test-support',regions:['test-region'],familyCategories:[],sourceUrl:'https://example.com/test',sourceName:'SOURCE original source',applyUrl:'https://example.com/apply',verifiedAt:'2026-11-11T00:00:00Z',ageMin:0,ageMax:17,deadline:null,isDemo:false};
 const privateProgram={...program,status:'draft',version:1,createdBy:id,submittedBy:null,reviewedBy:null};
 const taxonomy=[{id:'1',slug:'test-support',name:'SOURCE original category'}];
+const publicQueries=[];
 const page=data=>({data,pagination:{page:1,limit:20,total:data.length,totalPages:data.length?1:0}});
 let user=false,admin=false,empty=false,fail=false,noCategories=false,programStatus='draft',count=0;
 let children=[],childSequence=1,childFail=false,childDelay=0,childRecommendationsEmpty=false;
 const childRequests=[];
+let reportState='open',reportVersion=1;
+const reportId='77777777-7777-4777-8777-777777777777';
+const adminQueries=[];
 const failures=[];
 function matchedProgram(url){const p={...program,eligibilityComplete:true,ageMin:5,ageMax:12,deadline:'2099-01-01',familyCategories:['test-need']};return {...p,matching:evaluateMatch(p,{...(url.searchParams.has('age')?{age:Number(url.searchParams.get('age'))}:{}),...(url.searchParams.has('region')?{region:url.searchParams.get('region')}:{}),...(url.searchParams.has('need')?{need:url.searchParams.get('need')}:{})})};}
 await browser.send('Fetch.enable',{patterns:[{urlPattern:'*/api/*'}]});
@@ -56,17 +62,24 @@ const intercept=async event=>{
   else if(p==='/api/auth/saved-programs')body=page(empty?[]:[program]);
   else if(p==='/api/admin/session')body={data:{authenticated:admin,admin:admin?{id}:null,csrfToken:'b'.repeat(64)}};
   else if(p==='/api/admin/access')body={data:{id,role:'admin',permissions:['programs:read','programs:draft:write','programs:review','programs:publish']}};
-  else if(p==='/api/admin/programs/taxonomy')body={data:{categories:noCategories?[]:taxonomy,regions:[{slug:'test-region',name:'SOURCE original region'}],familyCategories:[]}};
+  else if(p==='/api/admin/programs/taxonomy')body={data:{categories:noCategories?[]:[...taxonomy,...categorySlugs.map((slug,i)=>({slug,name:tr('m'+(418+i),{},'kk')}))],regions:[{slug:'test-region',name:'SOURCE original region'},...regionSlugs.map((slug,i)=>({slug,name:tr('m'+(422+i),{},'kk')}))],familyCategories:['education-support','creative-development','sports-activities'].map((slug,i)=>({slug,name:tr('m'+(442+i),{},'kk')}))}};
+  else if(p==='/api/admin/programs/dashboard')body={data:{counts:{total:1,draft:1,review:0,verified:0,published:0,rejected:0,archived:0,needsReverification:0,expired:0},recent:[{id,title:program.title,status:'draft',version:1,updatedAt:'2026-11-13T00:00:00Z'}],reviewPeriodDays:180}};
+  else if(p==='/api/admin/programs/'+id+'/history')body=page([{id:reportId,actorId:id,programVersion:1,decision:'approve',notes:'TEST internal verification note',createdAt:'2026-11-13T00:00:00Z',sourceReviewed:true,informationReviewed:true,eligibilityReviewed:true}]);
+  else if(p==='/api/admin/reports')body=page([{id:reportId,programId:id,programTitle:program.title,reason:'outdated',explanation:'TEST report <img src=x onerror=alert(1)>',status:reportState,version:reportVersion,createdAt:'2026-11-13T00:00:00Z'}]);
+  else if(p==='/api/admin/reports/'+reportId){const input=JSON.parse(event.params.request.postData);reportState=input.status;reportVersion++;body={data:{id:reportId,status:reportState,version:reportVersion}};}
   else if(p==='/api/admin/programs'){
+    adminQueries.push(url.search);
     if(url.searchParams.has('lang'))failures.push('UI locale leaked into admin API query');
     body=page([privateProgram]);
   }
   else if(p.startsWith('/api/admin/programs/'))body={data:{...privateProgram,status:programStatus,createdBy:programStatus==='review'?'22222222-2222-4222-8222-222222222222':id,reviewedBy:programStatus==='verified'?'22222222-2222-4222-8222-222222222222':null}};
+  else if(p==='/api/programs/'+id+'/reports'){status=202;body={data:{accepted:true}};}
   else if(p==='/api/contact-messages'){status=201;body={data:{id}};}
   else if(p==='/api/family-categories')body=page([{id:'1',slug:'test-need',name:'SOURCE original need'}]);
   else if(p==='/api/categories')body=page(taxonomy);
   else if(p==='/api/regions')body=page([{id:'1',slug:'test-region',name:'SOURCE original region'}]);
   else if(p==='/api/programs'||p==='/api/program-matches'){
+    publicQueries.push(url.search);
     if(fail){status=503;body={error:{code:'UNAVAILABLE',message:'DO NOT DISPLAY RAW SERVER MESSAGE'}};}
     else body=page(empty?[]:[p==='/api/program-matches'?matchedProgram(url):program]);
   }
@@ -79,7 +92,7 @@ const routes=[
   ['/', 'm267'],['/find','m178'],['/results','m195'],['/program/'+id,'SOURCE original title'],['/favorites','m231'],['/contact','m243'],['/not-found','m170'],
   ['/login','login'],['/register','register'],['/forgot-password','reset'],['/reset-password','reset'],
   ['/profile','account'],['/profile/saved','savedTitle'],['/profile/children','m335'],
-  ['/admin','m012'],['/admin/login','m024'],['/admin/programs','m012'],['/admin/programs/new','m015'],['/admin/programs/'+id,'SOURCE original title'],['/admin/programs/'+id+'/edit','m117'],['/admin/not-found','m020'],
+  ['/admin','m012'],['/admin/login','m024'],['/admin/overview','m368'],['/admin/reports','m392'],['/admin/programs','m012'],['/admin/programs/new','m015'],['/admin/programs/'+id,'SOURCE original title'],['/admin/programs/'+id+'/edit','m117'],['/admin/not-found','m020'],
 ];
 function heading(key,language){return authText[language][key]??tr(key,{},language);}
 async function expectPage(key,language){
@@ -154,7 +167,7 @@ try{
     admin=true;noCategories=true;await browser.navigate(origin+'/admin/programs/new?lang='+language);await expectPage('m015',language);
     await browser.until(`document.body.innerText.includes(${JSON.stringify(tr('m305',{},language))})`);
     noCategories=false;count++;console.log('PASS '+count+': '+language+' unavailable admin taxonomy');
-    for(const [status,actionKey]of [['draft','m140'],['review','m141'],['verified','m143'],['published','m144']]){
+    for(const [status,actionKey]of [['draft','m140'],['review','m141'],['verified','m143'],['published','m144'],['published','m365'],['published','m367'],['rejected','m366'],['archived','m366']]){
       programStatus=status;await browser.navigate(origin+'/admin/programs/'+id+'?lang='+language);await expectPage('SOURCE original title',language);
       await browser.button(tr(actionKey,{},language));await browser.until("!!document.querySelector('.admin-confirm')");
       await choose(language==='kk'?'ru':'kk');await expectPage('SOURCE original title',language==='kk'?'ru':'kk');
@@ -233,6 +246,104 @@ try{
     await browser.button(authText[language].retry);await browser.until("!!document.querySelector('#user-email')");
     assert.equal(await browser.evaluate("!!document.querySelector('.child-card')"),false);
     count++;console.log('PASS '+count+': '+language+' safe child errors/retry and session-expiry redirect clear private content');
+  }
+  assert.deepEqual(failures,[]);assert.deepEqual(browser.errors,[]);
+  for(const language of ['kk','ru']){
+    user=false;admin=false;await browser.navigate(origin+'/program/'+id+'?lang='+language);await expectPage('SOURCE original title',language);
+    await browser.evaluate("document.querySelector('.program-report').open=true");await browser.setValue('#public-report-reason','outdated');await browser.setValue('#public-report-explanation','TEST report only');
+    await browser.evaluate("document.querySelector('.program-report form').requestSubmit()");await browser.until(`document.body.innerText.includes(${JSON.stringify(tr('m405',{},language))})`);
+    await choose(language==='kk'?'ru':'kk');await expectPage('SOURCE original title',language==='kk'?'ru':'kk');
+    count++;console.log('PASS '+count+': '+language+' anonymous report submission and localized acceptance');
+    admin=true;reportState='open';reportVersion=1;await browser.navigate(origin+'/admin/reports?lang='+language);await expectPage('m392',language);await browser.until("!!document.querySelector('.report-list li')");
+    assert.equal(await browser.evaluate("!!document.querySelector('.report-list img')"),false,'untrusted report text is escaped');
+    await browser.button(tr('m409',{},language));await browser.until(`document.querySelector('.report-list')?.innerText.includes(${JSON.stringify(tr('m395',{},language))})`);
+    await browser.button(tr('m410',{},language));await browser.until(`document.querySelector('.report-list')?.innerText.includes(${JSON.stringify(tr('m396',{},language))})`);
+    count++;console.log('PASS '+count+': '+language+' report moderation, escaped explanation and state refresh');
+    await browser.navigate(origin+'/admin/programs?lang='+language);await expectPage('m012',language);await browser.until("!!document.querySelector('#admin-region option[value=\"test-region\"]')");
+    await browser.setValue('#admin-region','test-region');await browser.setValue('#admin-category','test-support');await browser.setValue('#admin-expiration','expired');
+    await browser.evaluate("document.querySelector('.admin-filters').requestSubmit()");await browser.until("new URLSearchParams(location.search).get('expiration')==='expired'");
+    for(let attempt=0;attempt<100&&!adminQueries.some(q=>new URLSearchParams(q).get('region')==='test-region'&&new URLSearchParams(q).get('category')==='test-support'&&new URLSearchParams(q).get('expiration')==='expired');attempt++)await new Promise(resolve=>setTimeout(resolve,50));
+    assert.ok(adminQueries.some(q=>new URLSearchParams(q).get('region')==='test-region'&&new URLSearchParams(q).get('category')==='test-support'&&new URLSearchParams(q).get('expiration')==='expired'));
+    count++;console.log('PASS '+count+': '+language+' combined admin taxonomy and expiration filters use API query contract');
+  }
+  assert.deepEqual(failures,[]);assert.deepEqual(browser.errors,[]);
+  // Empty API results must still offer all categories and stable, localized navigation.
+  for(const language of ['kk','ru']){
+    user=false;admin=false;empty=true;
+    await browser.navigate(origin+'/?lang='+language);await expectPage('m267',language);
+    for(const [index,slug] of ['benefits','free-courses','grants','clubs'].entries()){
+      const label=tr('m'+(418+index),{},language);
+      await browser.until(`!!document.querySelector('.service-directions a[href="/results?category=${slug}"]')`);
+      await browser.evaluate(`document.querySelector('.service-directions a[href="/results?category=${slug}"]').click()`);
+      await expectPage('m195',language);await browser.until("!!document.querySelector('.empty-results')");
+      assert.equal(await browser.evaluate("document.querySelector('.discovery-term input').value"),'');
+      assert.equal(await browser.evaluate("document.querySelectorAll('.filter-chips button').length"),5);
+      assert.equal(await browser.evaluate("document.querySelector('.filter-chips [aria-pressed=true]').textContent"),label);
+      assert.ok(publicQueries.some(q=>new URLSearchParams(q).get('category')===slug&&!new URLSearchParams(q).has('q')));
+      await browser.evaluate('history.back()');await expectPage('m267',language);
+      await browser.evaluate('history.forward()');await expectPage('m195',language);
+      assert.equal(await browser.evaluate("new URLSearchParams(location.search).get('category')"),slug);
+      await browser.evaluate('history.back()');await expectPage('m267',language);
+    }
+    count++;console.log('PASS '+count+': '+language+' all category links, empty catalog, actual filter requests and Back/Forward');
+    await browser.navigate(origin+'/results?category=benefits&region=test-region&age=7&need=test-need&matching=1&q=manual&lang='+language);
+    await expectPage('m195',language);await browser.until("document.querySelector('.discovery-term input')?.value==='manual'");
+    await browser.button(tr('m420',{},language));
+    for(const [key,value]of Object.entries({category:'grants',region:'test-region',age:'7',need:'test-need',matching:'1',q:'manual'}))assert.equal(await browser.evaluate(`new URLSearchParams(location.search).get(${JSON.stringify(key)})`),value);
+    await browser.setValue('.discovery-term input','not submitted');await choose(language==='kk'?'ru':'kk');
+    assert.equal(await browser.evaluate("document.querySelector('.discovery-term input').value"),'not submitted');
+    assert.equal(await browser.evaluate("document.querySelector('.filter-chips [aria-pressed=true]').textContent"),tr('m420',{},language==='kk'?'ru':'kk'));
+    count++;console.log('PASS '+count+': '+language+' direct category URL, combined filters and typed query survive locale switch');
+    for(const path of ['/register','/login','/reset-password']){
+      await browser.navigate(origin+path+'?lang='+language+(path==='/reset-password'?'#token='+'c'.repeat(64):''));
+      await expectPage(path==='/register'?'register':path==='/login'?'login':'reset',language);
+      await browser.until("!!document.querySelector('#user-password:not(:disabled)')");
+      if(path!=='/reset-password')await browser.setValue('#user-email','test@example.com');
+      for(const [password,key]of [['short','passwordShort'],['😀'.repeat(65),'passwordLong']]){
+        await browser.setValue('#user-password',password);
+        await browser.evaluate("document.querySelector('.account-panel form').requestSubmit()");
+        await browser.until(`document.body.innerText.includes(${JSON.stringify(authText[language][key])})`);
+        assert.equal(await browser.evaluate("/UTF-8|256/.test(document.querySelector('.account-feedback').innerText)"),false);
+      }
+    }
+    count++;console.log('PASS '+count+': '+language+' friendly password boundaries on login, registration and reset');
+  }
+  empty=false;
+  for(const width of [320,375,768,1024,1440]){
+    await browser.send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<768});
+    await browser.navigate(origin+'/results?lang=ru');await expectPage('m195','ru');
+    assert.equal(await browser.evaluate('document.documentElement.scrollWidth<=innerWidth'),true);
+  }
+  await browser.evaluate("document.querySelector('.discovery-term input').focus()");
+  await browser.send('Input.dispatchKeyEvent',{type:'keyDown',key:'Tab',code:'Tab',windowsVirtualKeyCode:9});
+  await browser.send('Input.dispatchKeyEvent',{type:'keyUp',key:'Tab',code:'Tab',windowsVirtualKeyCode:9});
+  assert.equal(await browser.evaluate("document.activeElement.name"),'region');
+  assert.equal(await browser.evaluate("getComputedStyle(document.querySelector('.discovery-region')).outlineWidth"),'2px');
+  assert.equal(await browser.evaluate("getComputedStyle(document.activeElement).outlineStyle"),'none');
+  const rect=await browser.evaluate("(()=>{const r=document.querySelector('.discovery-term input').getBoundingClientRect();return {x:r.x+20,y:r.y+20};})()");
+  await browser.send('Input.dispatchMouseEvent',{type:'mousePressed',...rect,button:'left',clickCount:1});
+  await browser.send('Input.dispatchMouseEvent',{type:'mouseReleased',...rect,button:'left',clickCount:1});
+  assert.equal(await browser.evaluate("getComputedStyle(document.querySelector('.discovery-term input')).outlineStyle"),'none');
+  assert.equal(await browser.evaluate("getComputedStyle(document.querySelector('.discovery-term')).outlineWidth"),'2px');
+  count++;console.log('PASS '+count+': 320-1440px category navigation, keyboard and mouse single-boundary focus');
+  assert.deepEqual(failures,[]);assert.deepEqual(browser.errors,[]);
+  for(const language of ['kk','ru'])for(const path of ['/admin/programs/new','/admin/programs/'+id+'/edit']){
+    admin=true;programStatus='draft';await browser.navigate(origin+path+'?lang='+language);
+    await expectPage(path.endsWith('/new')?'m015':'m117',language);await browser.until("!!document.querySelector('#program-regions input[value=astana]')");
+    for(let i=0;i<20;i++)assert.equal(await browser.evaluate(`document.querySelector('#program-regions .admin-checks').innerText.includes(${JSON.stringify(tr('m'+(422+i),{},language))})`),true);
+    await browser.evaluate("document.querySelector('#program-regions input[value=astana]').click();document.querySelector('#program-familyCategories input[value=\"education-support\"]').click()");
+    await browser.setValue('#program-category','benefits');await browser.setValue('#program-title','SOURCE unchanged title');
+    await choose(language==='kk'?'ru':'kk');
+    assert.equal(await browser.evaluate("document.querySelector('#program-regions input[value=astana]').checked"),true);
+    assert.equal(await browser.evaluate("document.querySelector('#program-familyCategories input[value=\"education-support\"]').checked"),true);
+    assert.equal(await browser.evaluate("document.querySelector('#program-category').value"),'benefits');
+    assert.equal(await browser.evaluate("document.querySelector('#program-title').value"),'SOURCE unchanged title');
+    assert.equal(await browser.evaluate("document.querySelector('#program-category option[value=benefits]').textContent"),tr('m418',{},language==='kk'?'ru':'kk'));
+    await browser.evaluate("document.querySelector('#program-nationwide').click()");
+    assert.equal(await browser.evaluate(`Array.from(document.querySelectorAll('#program-regions .admin-checks input:checked')).filter(el=>${JSON.stringify(regionSlugs)}.includes(el.value)).length`),20);
+    await browser.setValue('#program-region-search',tr('m439',{},language==='kk'?'ru':'kk'));
+    assert.equal(await browser.evaluate("document.querySelectorAll('#program-regions .admin-checks input').length"),1);
+    count++;console.log('PASS '+count+': '+language+' '+path+' all regions, nationwide, search, localized labels and preserved values');
   }
   assert.deepEqual(failures,[]);assert.deepEqual(browser.errors,[]);
   console.log('Localization browser: '+count+'/'+count+' PASS; API fixtures only, no database access.');

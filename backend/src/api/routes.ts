@@ -7,6 +7,7 @@ import { contactBody, emptyInput, paginationQuery, programParams, programQuery, 
 import { HttpError } from '../middleware/errors.ts';
 import {matchingQuery,matchingDetailsQuery} from './schemas.ts';
 import {findMatches} from '../matching/repository.ts';
+import {reportBody} from './schemas.ts';
 
 export function apiRouter(database?: Database) {
   const router = Router();
@@ -52,6 +53,17 @@ export function apiRouter(database?: Database) {
     windowMs: 15 * 60 * 1000, limit: 5, standardHeaders: 'draft-8', legacyHeaders: false,
     handler: (_request, _response, next) => next(new HttpError(429, 'RATE_LIMITED', 'Too many requests.')),
   });
+  const reportLimit=rateLimit({windowMs:900000,limit:5,standardHeaders:'draft-8',legacyHeaders:false,
+    handler:(_req,_res,next)=>next(new HttpError(429,'RATE_LIMITED','Too many requests.'))});
+  router.route('/programs/:id/reports').post(reportLimit,async(req,res)=>{
+    const {id}=validate(programParams,req.params);validate(emptyInput,req.query);
+    if(!req.is('application/json'))throw new HttpError(415,'UNSUPPORTED_MEDIA_TYPE','Expected application/json.');
+    const input=validate(reportBody,req.body);repository();
+    const result=await database!.query(`INSERT INTO balaqoldau.program_reports(program_id,reason,explanation)
+      SELECT id,$2,$3 FROM balaqoldau.published_programs WHERE id=$1 RETURNING 1 AS accepted`,[id,input.reason,input.explanation??null]);
+    if(!result.rows.length)throw new HttpError(404,'NOT_FOUND','Program not found.');
+    res.status(202).json({data:{accepted:true}});
+  }).all(methods('POST, OPTIONS'));
   router.route('/contact-messages').post(contactLimit, async (request, response) => {
     validate(emptyInput, request.query);
     if (!request.is('application/json')) throw new HttpError(415, 'UNSUPPORTED_MEDIA_TYPE', 'Expected application/json.');

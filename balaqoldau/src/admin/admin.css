@@ -58,3 +58,14 @@
 @media (max-width: 768px) { .admin-layout { grid-template-columns: minmax(0,1fr); gap: 12px; padding: 16px; }.admin-nav { display: flex; flex-wrap: wrap; gap: 0; }.admin-nav a { padding: 10px; }.admin-app main { padding: 20px; } }
 @media (max-width: 540px) { .admin-header { gap: 12px; padding: 16px; }.admin-header .admin-brand { width: 100%; }.admin-form-grid, .admin-checks { grid-template-columns: minmax(0,1fr); }.admin-app main { padding: 16px; }.admin-facts { grid-template-columns: minmax(0,1fr); gap: 4px; }.admin-facts dd { margin-bottom: 12px; }.admin-login-layout { margin-block: 24px; } }
 @media (prefers-reduced-motion: reduce) { .admin-app *, .admin-app *::before, .admin-app *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+.verification-counts { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; }
+.verification-counts>div { border:1px solid #b8c5d2; padding:12px; }
+.verification-counts dd { margin:8px 0 0; font-size:1.5rem; font-weight:700; }
+.verification-id,.verification-notes { overflow-wrap:anywhere; white-space:pre-wrap; }
+.verification-history li,.report-list li { margin-block:16px; border-bottom:1px solid #d4dde7; padding-block:12px; }
+.admin-confirm textarea { width:100%; min-height:100px; }
+.admin-reference-section{margin-block:20px;min-width:0}
+.admin-reference-section .admin-checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:8px 20px;margin-block:12px}
+.admin-reference-section .admin-checks label{display:flex;align-items:flex-start;gap:10px;line-height:1.5;min-width:0;overflow-wrap:normal;word-break:normal}
+.admin-reference-section input[type=checkbox]{flex:0 0 auto;margin-top:4px}
+.admin-reference-section input[type=search]{max-width:440px;width:100%;margin-bottom:8px}

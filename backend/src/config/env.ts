@@ -24,6 +24,7 @@ const environmentSchema = z.object({
     .pipe(z.array(origin).min(1)).transform(values => [...new Set(values)]),
   RATE_LIMIT_WINDOW_MS: integer('60000', 2147483647),
   RATE_LIMIT_MAX: integer('100', 100000),
+  PROGRAM_REVIEW_DAYS: integer('180',730).refine(value=>value>=7),
   DATABASE_URL: databaseUrlSchema.optional(),
   ADMIN_ENABLED: z.enum(['true', 'false']).default('false').transform(value => value === 'true'),
   ADMIN_ORIGIN: origin.optional(),

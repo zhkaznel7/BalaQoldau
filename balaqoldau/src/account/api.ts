@@ -37,7 +37,11 @@ export function safeReturnTo(value:string|null):string {
   if(!value||value.includes('\\')||[...value].some(character=>character.charCodeAt(0)<=32)||!/^\/(?:results|find|favorites|profile(?:\/(?:saved|children))?|program\/[a-f0-9-]{36})(?:[?#]|$)/i.test(value))return '/profile';
   try{const url=new URL(value,'https://local.invalid');return url.origin==='https://local.invalid'?url.pathname+url.search+url.hash:'/profile';}catch{return '/profile';}
 }
-export const validNewPassword = (value:string) => [...value].length>=8 && new TextEncoder().encode(value).length<=256;
+export function passwordError(value:string):'passwordShort'|'passwordLong'|null {
+  if([...value].length<8)return 'passwordShort';
+  return new TextEncoder().encode(value).length>256?'passwordLong':null;
+}
+export const validNewPassword = (value:string) => passwordError(value)===null;
 export function resetTokenFromHash(hash:string):string {
   if(!hash.startsWith('#')) return '';
   const values=new URLSearchParams(hash.slice(1)); const value=values.get('token')??'';
@@ -54,7 +58,7 @@ export function createUserApi(fetcher:typeof fetch=fetch, expired:()=>void=()=>{
     if(!response.ok) {
       if(response.status===401 && path!=='/login'){csrf='';epoch++;expired();}
       let code=''; try{const payload=object(await response.json()); code=String(object(payload.error).code);}catch{/* Never echo server details. */}
-      const key:AuthMessage=response.status===401?(path==='/login'?'credentials':'expired'):response.status===403?'forbidden':response.status===429?'limited':
+      const key:AuthMessage=response.status===401?(path==='/login'?'credentials':'expired'):response.status===403?'forbidden':response.status===429?'limited':code==='PASSWORD_TOO_SHORT'?'passwordShort':code==='PASSWORD_TOO_LONG'?'passwordLong':
         code==='CHILD_LIMIT'?'childLimit':path.startsWith('/children')&&response.status===404?'childMissing':path.startsWith('/children')&&response.status===409?'childConflict':path.startsWith('/children')&&response.status===400?'childInvalid':code==='RESET_UNAVAILABLE'?'noMail':code==='INVALID_RESET'?'invalidReset':code==='PASSWORD_POLICY'?'passwordInvalid':response.status===404&&path.startsWith('/saved-programs/')?'programUnavailable':response.status===409?'conflict':response.status===400?'invalid':'unavailable';
       throw new UserAuthError(response.status,key);
     }

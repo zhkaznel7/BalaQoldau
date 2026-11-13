@@ -1,8 +1,9 @@
 import { ApiError, createApi } from './client.ts';
-import type { ContactInput } from './client.ts';
+import type { ContactInput,ReportInput } from './client.ts';
 let client: ReturnType<typeof createApi> | undefined;
 const getClient = () => client ??= createApi(import.meta.env?.VITE_API_BASE_URL || '/api');
 export const api = {
+  report:(id:string,input:ReportInput,signal?:AbortSignal)=>getClient().report(id,input,signal),
   async programs(query: string, signal?: AbortSignal) { return new URLSearchParams(query).get('matching')==='1'?getClient().matches(query,signal):getClient().programs(query, signal); },
   async program(id: string, signal?: AbortSignal) { return getClient().program(id, signal); },
   async match(id:string,query:string,signal?:AbortSignal){return getClient().match(id,query,signal);},

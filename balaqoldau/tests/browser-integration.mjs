@@ -191,7 +191,8 @@ try {
   await navigate('/');
   assert.match(await evaluate('document.querySelector(".platform-notice")?.textContent || ""'), /Тәуелсіз.*Мемлекеттік.*емес/);
   assert.equal(await evaluate('document.querySelectorAll(".service-directions a").length'), 4);
-  assert.deepEqual(await evaluate('[...document.querySelectorAll(".service-directions a")].map(link=>new URL(link.href).searchParams.get("q"))'), ['жәрдемақы', 'тегін курс', 'үйірме', 'грант']);
+  assert.deepEqual(await evaluate('[...document.querySelectorAll(".service-directions a")].map(link=>new URL(link.href).searchParams.get("category"))'), ['benefits', 'free-courses', 'clubs', 'grants']);
+  assert.equal(await evaluate('[...document.querySelectorAll(".service-directions a")].every(link=>!new URL(link.href).searchParams.has("q"))'),true);
   await until('document.querySelectorAll(".hero-finder select[name=region] option").length===2');
   await setValue('.hero-finder [name=q]', 'үйірме');
   await setValue('.hero-finder [name=age]', '0');
@@ -205,8 +206,9 @@ try {
   await navigate('/');
   await evaluate('document.querySelector(".service-directions a").click()');
   await until('location.pathname==="/results" && !!document.querySelector(".program-card")');
-  assert.equal(await evaluate('new URLSearchParams(location.search).get("q")'), 'жәрдемақы');
-  check('service direction navigation searches without inventing API category slugs');
+  assert.equal(await evaluate('new URLSearchParams(location.search).get("q")'), null);
+  assert.equal(await evaluate('new URLSearchParams(location.search).get("category")'), 'benefits');
+  check('service direction navigation uses backend taxonomy slugs without injecting search keywords');
   if (process.env.UI_REVIEW) {
     const report = [];
     await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });

@@ -28,8 +28,8 @@ test('eligibility completeness obeys existing RBAC, CSRF, revision and review wo
     let response=await call('','editor','POST',input);assert.equal(response.status,201);let p=(await response.json()).data;assert.equal(p.eligibilityComplete,false);
     assert.equal((await call('/'+p.id,'reviewer','PATCH',{version:p.version,eligibilityComplete:true})).status,403);
     response=await call('/'+p.id,'editor','PATCH',{version:p.version,eligibilityComplete:true});assert.equal(response.status,200);p=(await response.json()).data;assert.equal(p.eligibilityComplete,true);
-    const action=async(name,role)=>{const response=await call('/'+p.id+'/'+name,role,'POST',{version:p.version});assert.equal(response.status,200);p=(await response.json()).data;};
-    assert.equal((await call('/'+p.id+'/publish','admin','POST',{version:p.version})).status,409);
+    const action=async(name,role)=>{const response=await call('/'+p.id+'/'+name,role,'POST',{version:p.version,...(name==='publish'?{confirm:true}:{}),...(name==='approve'?{sourceReviewed:true,informationReviewed:true,eligibilityReviewed:true}:{})});assert.equal(response.status,200);p=(await response.json()).data;};
+    assert.equal((await call('/'+p.id+'/publish','admin','POST',{version:p.version,confirm:true})).status,409);
     await action('submit','editor');
     assert.equal((await call('/'+p.id,'editor','PATCH',{version:p.version,eligibilityComplete:false})).status,409);
     await action('approve','reviewer');await action('publish','admin');

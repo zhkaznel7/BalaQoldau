@@ -25,7 +25,7 @@ export function childrenRepository(db:Database){
     async options(token:string){
       return (await db.query<{authorized:boolean;regions:{slug:string;name:string}[];categories:{slug:string;name:string}[]}>(`WITH active AS (${active})
         SELECT EXISTS(SELECT 1 FROM active) AS authorized,
-        COALESCE((SELECT json_agg(items) FROM (SELECT slug,name FROM balaqoldau.regions WHERE EXISTS(SELECT 1 FROM active) ORDER BY name,slug LIMIT 1001)items),'[]') AS regions,
+        COALESCE((SELECT json_agg(items) FROM (SELECT slug,name FROM balaqoldau.regions WHERE EXISTS(SELECT 1 FROM active) AND slug !~* '^demo(-|$)' AND name !~* '^DEMO' ORDER BY name,slug LIMIT 1001)items),'[]') AS regions,
         COALESCE((SELECT json_agg(items) FROM (SELECT slug,name FROM balaqoldau.categories WHERE EXISTS(SELECT 1 FROM active) ORDER BY name,slug LIMIT 1001)items),'[]') AS categories`,[userTokenHash(token)])).rows[0];
     },
     async write(token:string,input:ChildInput,id?:string,version?:number){
@@ -33,7 +33,7 @@ export function childrenRepository(db:Database){
       // Existing preferences are retained; only removed selections are deleted.
       return (await db.query<State>(`WITH active AS MATERIALIZED (${active} FOR SHARE OF u),
         owned AS (SELECT c.id FROM balaqoldau.child_profiles c WHERE c.id=$6::uuid AND c.user_id IN(SELECT id FROM active)),
-        region AS (SELECT id FROM balaqoldau.regions WHERE slug=$4),
+        region AS (SELECT id FROM balaqoldau.regions WHERE slug=$4 AND slug !~* '^demo(-|$)' AND name !~* '^DEMO'),
         categories AS (SELECT id,slug FROM balaqoldau.categories WHERE slug=ANY($5::text[])),
         valid AS (SELECT EXISTS(SELECT 1 FROM region) AND (SELECT count(*) FROM categories)=cardinality($5::text[]) AS ok),
         free AS (SELECT n FROM generate_series(1,20) n WHERE NOT EXISTS(SELECT 1 FROM balaqoldau.child_profiles c

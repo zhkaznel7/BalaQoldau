@@ -20,10 +20,12 @@ export default function Contact() {
   const [invalidAttempt, setInvalidAttempt] = useState(0);
   const errorSummary = useRef<HTMLDivElement>(null);
   const request = useRef<AbortController | null>(null);
+  const submission = useRef<{ id: string; key: string } | null>(null);
   useEffect(() => () => request.current?.abort(), []);
   useEffect(() => { if (invalidAttempt > 0) errorSummary.current?.focus(); }, [invalidAttempt]);
   function update(name: keyof ContactInput, value: string) {
     setInput(current => ({ ...current, [name]: value }));
+    submission.current = null;
     setErrors(current => { const next = { ...current }; delete next[name]; return next; });
     setStatus('idle');
     setFeedback('');
@@ -40,14 +42,30 @@ export default function Contact() {
       setInvalidAttempt(current => current + 1);
       return;
     }
+    const key = JSON.stringify([
+      fields.senderName,
+      fields.email,
+      fields.message,
+    ]);
+
+    if (!submission.current || submission.current.key !== key) {
+      submission.current = {
+        id: crypto.randomUUID(),
+        key,
+      };
+    }
     const controller = new AbortController();
     request.current = controller;
     setStatus('pending');
     setFeedback('');
     try {
-      await api.contact(fields, controller.signal);
+      await api.contact(
+        { ...fields, submissionId: submission.current!.id },
+        controller.signal
+      );
       if (!controller.signal.aborted) {
         setStatus('success');
+        submission.current = null;
         setFeedback(tr("m241"));
         setInput({ senderName: '', email: '', message: '' });
       }

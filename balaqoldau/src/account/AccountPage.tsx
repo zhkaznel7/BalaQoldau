@@ -4,7 +4,7 @@ import type { FormEvent } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { authText } from './translations';
 import type { AuthMessage } from './translations';
-import { resetTokenFromHash, safeReturnTo, UserAuthError, validNewPassword } from './api';
+import { resetTokenFromHash, safeReturnTo, UserAuthError, passwordError } from './api';
 import { useUser } from './context';
 import { validContactEmail } from '../api/contact';
 import './account.css';
@@ -36,7 +36,8 @@ export default function AccountPage() {
     event.preventDefault();if(api.busy()||pending)return;
     setError(null);setSuccess(null);
     if(!resetting&&!validContactEmail(email)){setError('invalid');return;}
-    if(!forgot&&!validNewPassword(password)){setError('passwordInvalid');return;}
+    const passwordProblem=forgot?null:passwordError(password);
+    if(passwordProblem){setError(passwordProblem);return;}
     if((registering||resetting)&&password!==confirmation){setError('mismatch');return;}
     if(resetting&&!resetToken){setError('invalidReset');return;}
     setPending(true);

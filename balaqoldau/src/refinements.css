@@ -138,6 +138,12 @@ footer { border-top: 1px solid var(--line); background: #f1f5f9; margin-top: 32p
 .discovery-term input::placeholder { color: var(--muted); opacity: 1; }
 .discovery-region select { min-width: 0; width: 100%; min-height: 48px; padding: 12px 36px 12px 12px; appearance: none; background: transparent; color: var(--ink); }
 .discovery-region > svg { position: absolute; right: 12px; color: var(--muted); pointer-events: none; }
+/* A single focus stroke follows the control boundary, rather than an inner blue box. */
+.finder-query input:focus-visible,.discovery-term input:focus-visible,.discovery-region select:focus-visible { outline: none; box-shadow: none; }
+.finder-query > div:has(input:focus-visible),.discovery-term:has(input:focus-visible),.discovery-region:has(select:focus-visible),
+.hero-finder .field :is(input,select):focus-visible,.search-form .field :is(input,select):focus-visible {
+  outline: 2px solid var(--action); outline-offset: -1px; box-shadow: none;
+}
 .results-toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-top: 24px; }
 .filter-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip { min-height: 44px; max-width: 100%; white-space: normal; padding: 8px 16px; border: 1px solid var(--field-line); background: white; color: var(--ink); font-size: 14px; line-height: 1.5; border-radius: 4px; text-align: start; }
@@ -279,3 +285,7 @@ footer { border-top: 1px solid var(--line); background: #f1f5f9; margin-top: 32p
 .matching-check-kind { font-weight: 600; }
 .matching-not_match { border-color: #a52a2a; }
 .matching-toggle { display: flex; gap: 10px; align-items: center; margin-block: 16px; }
+.program-report { border-top:1px solid #b8c5d2; margin-top:28px; padding-top:20px; }
+.program-report summary { cursor:pointer; color:#075ea8; text-decoration:underline; text-underline-offset:3px; }
+.program-report form { display:grid; gap:12px; max-width:640px; }
+.program-report select,.program-report textarea { width:100%; border:1px solid #6b7e91; padding:10px; color:#142b47; background:white; border-radius:4px; }

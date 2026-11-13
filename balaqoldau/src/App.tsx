@@ -22,8 +22,11 @@ import { SaveProgramButton, SavedProgramsScope } from './account/SavedProgramsSc
 import LanguageSwitcher, { LanguageNavigation } from './components/LanguageSwitcher';
 import { carryLanguage, withoutLanguage } from './components/language';
 import ContentLanguageNotice from './i18n/ContentLanguageNotice';
+import ReportProgram from './components/ReportProgram';
 import MatchingSummary from './components/MatchingSummary';
 import {matchingContext} from './api/matching';
+import {catalogCategories,categoryName} from './api/categories';
+import {referenceName} from './api/reference-data';
 import './refinements.css';
 const FavoritesContext = createContext<{
     ids: string[];
@@ -160,7 +163,7 @@ function SelectField({ label, name, value, options, placeholder, onChange, disab
   useUi();
     return <label className="field"><span>{tr(label)}</span><div className="select-wrap">
       <select name={name} value={value} disabled={disabled} onChange={event => onChange(event.target.value)}>
-        <option value="">{tr(placeholder)}</option>{options.map(option => <option key={option.id} value={option.slug}>{option.name}</option>)}
+        <option value="">{tr(placeholder)}</option>{options.map(option => <option key={option.id} value={option.slug}>{name==='category'?categoryName(option.slug,option.name):name==='region'||name==='need'?referenceName(name==='region'?'regions':'familyCategories',option.slug,option.name):option.name}</option>)}
       </select><ChevronDown aria-hidden="true" size={17}/></div></label>;
 }
 function Find() {
@@ -213,7 +216,7 @@ function SearchResults() {
       <CatalogStatus/><DiscoverySearch key={query}/><label className="matching-toggle"><input type="checkbox" checked={params.get('matching')==='1'} onChange={e=>setParams(updateFilters(params,{matching:e.target.checked?'1':'',need:''}))}/>{tr("m329")}</label>{params.get('matching')==='1'&&<><p className="field-hint">{tr("m330")}</p><SelectField label={tr("m327")} name="need" value={params.get('need')||''} options={catalog.needs} disabled={catalog.loading||!!catalog.error} placeholder={tr("m328")} onChange={need=>setParams(updateFilters(params,{need}))}/></>}
       <div className="results-toolbar"><div className="filter-chips" aria-label={tr("m197")}>
         <button className={!params.get('category') ? 'chip selected' : 'chip'} aria-pressed={!params.get('category')} onClick={() => categoryFilter('')}>{""+tr("m186")+""}</button>
-        {catalog.categories.map(item => <button key={item.id} className={params.get('category') === item.slug ? 'chip selected' : 'chip'} aria-pressed={params.get('category') === item.slug} onClick={() => categoryFilter(item.slug)}>{item.name}</button>)}
+        {catalogCategories().map(item => <button key={item.id} className={params.get('category') === item.slug ? 'chip selected' : 'chip'} aria-pressed={params.get('category') === item.slug} onClick={() => categoryFilter(item.slug)}>{item.name}</button>)}
       </div><Link to={`/find?${query}`} className="inline-link"><SlidersHorizontal aria-hidden="true" size={17}/>{" "+tr("m198")+""}</Link></div>
       <div className="results-summary"><h2 className="result-count" id="results-heading" ref={summary} tabIndex={-1} aria-live="polite" aria-atomic="true">{state.loading ? tr("m199") : state.error ? tr("m200") : tr("m201", {"0":state.data?.pagination.total ?? 0})}</h2>
       {query && <button type="button" className="reset-filters" onClick={() => setParams({})}><X aria-hidden="true" size={14}/>{" "+tr("m202")+""}</button>}</div>
@@ -246,7 +249,7 @@ function ProgramDetails({ id }: { id: string }) {
     if (state.error) return <div className="container inner-page"><PageIntro label={tr("m206")} title={tr("m207")} text={tr("m209")}/>{state.error instanceof ApiError && state.error.status === 404 ? <Empty title={tr("m210")} text={tr("m211")}/> : <RequestError error={state.error} retry={state.retry}/>}</div>;
     const p = state.data;
     if (!p) return null;
-    const category = catalog.categories.find(item => item.slug === p.category)?.name || p.category;
+    const category = categoryName(p.category,catalog.categories.find(item => item.slug === p.category)?.name || p.category);
     const regionNames = p.regions.map(slug => catalog.regions.find(region => region.slug === slug)?.name || slug);
     return <div className="container inner-page">
       <Link className="inline-link back-link" to={back}><ArrowLeft aria-hidden="true" size={17}/> {back.startsWith('/favorites') ? tr("m212") : tr("m213")}</Link>
@@ -260,7 +263,7 @@ function ProgramDetails({ id }: { id: string }) {
       </div><aside className="application-aside"><FileText aria-hidden="true" size={30}/><h2>{""+tr("m225")+""}</h2><p>{""+tr("m226")+""}</p>
         {p.applyUrl ? <a className="button primary" href={p.applyUrl} target="_blank" rel="noopener noreferrer" aria-describedby="external-link-note">{""+tr("m227")+" "}<ExternalLink aria-hidden="true" size={18}/></a> : <div className="unavailable">{""+tr("m228")+""}</div>}
         <p className="small">{""+tr("m229")+""}</p>
-      </aside></div>
+      </aside></div><ReportProgram programId={p.id}/>
     </div>;
 }
 function Favorites() {

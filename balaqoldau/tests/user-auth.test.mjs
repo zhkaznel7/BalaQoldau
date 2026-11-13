@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createUserApi, UserAuthError, resetTokenFromHash, validNewPassword } from '../src/account/api.ts';
+import { createUserApi, UserAuthError, resetTokenFromHash, validNewPassword, passwordError } from '../src/account/api.ts';
 import { authText } from '../src/account/translations.ts';
 
 test('user client keeps credentials and CSRF separate from admin and does not retry writes', async () => {
@@ -19,12 +19,19 @@ test('401 invokes expiry handler; unknown reset errors never echo server content
   await assert.rejects(api.profile()); assert.equal(expired,1);
   await assert.rejects(api.login('test@example.com','wrong')); assert.equal(expired,1);
 });
-test('backend password-policy errors map to explicit KZ/RU bounds without raw messages',async()=>{
+test('backend password-policy errors map to friendly KZ/RU messages without raw details',async()=>{
   const api=createUserApi(async()=>Response.json({error:{code:'PASSWORD_POLICY',message:'private-detail'}},{status:400}));
   await assert.rejects(api.register('test@example.com','short','kk'),error=>error.key==='passwordInvalid');
   for(const language of ['kk','ru']){
-    assert.match(authText[language].hint,/8/);assert.match(authText[language].passwordInvalid,/8/);
-    assert.match(authText[language].passwordInvalid,/256/);
+    assert.match(authText[language].passwordShort,/8/);
+    for(const key of ['passwordShort','passwordLong','passwordInvalid','hint'])assert.doesNotMatch(authText[language][key],/UTF|256|байт/i);
+  }
+  assert.equal(passwordError('x'.repeat(7)),'passwordShort');
+  assert.equal(passwordError('😀'.repeat(65)),'passwordLong');
+  assert.equal(passwordError('x'.repeat(8)),null);
+  for(const [code,key] of [['PASSWORD_TOO_SHORT','passwordShort'],['PASSWORD_TOO_LONG','passwordLong']]){
+    const client=createUserApi(async()=>Response.json({error:{code,message:'private-detail'}},{status:400}));
+    await assert.rejects(client.confirmReset('a'.repeat(64),'synthetic'),error=>error.key===key);
   }
 });
 test('reset fragments and password bounds are validated; KZ/RU dictionaries have identical keys',()=>{

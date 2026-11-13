@@ -12,6 +12,7 @@ import type { Permission } from './authorization.ts';
 import { paginationQuery } from '../api/schemas.ts';
 import { programListInput } from './program-schemas.ts';
 import { handlePrograms } from './program-routes.ts';
+import {handleReports,reportListQuery} from './report-routes.ts';
 
 const empty = z.strictObject({});
 export const loginInput = z.strictObject({ email: z.email().max(254).transform(value => value.toLowerCase()),
@@ -28,13 +29,18 @@ export function adminRouter(config: Config, database?: Database) {
     const origin = request.get('Origin');
     if ((origin !== undefined && origin !== config.ADMIN_ORIGIN) || request.get('Sec-Fetch-Site') === 'cross-site'
       || (['POST','PATCH'].includes(request.method) && origin !== config.ADMIN_ORIGIN)) throw new HttpError(403, 'CSRF_FORBIDDEN', 'Request is not allowed.');
-    const query = request.method === 'GET' && request.path === '/audit-log' ? paginationQuery
-      : request.method === 'GET' && request.path === '/programs' ? programListInput : empty;
+    const query = request.method === 'GET' && (request.path === '/audit-log'||/^\/programs\/[^/]+\/history$/.test(request.path)) ? paginationQuery
+      : request.method==='GET'&&request.path==='/reports'?reportListQuery:request.method === 'GET' && request.path === '/programs' ? programListInput : empty;
     if (!query.safeParse(request.query).success) throw new HttpError(400, 'VALIDATION_ERROR', 'Invalid request input.');
     next();
   });
-  router.use(rateLimit({ windowMs: 900000, limit: 60, standardHeaders: 'draft-8', legacyHeaders: false,
-    handler: (_req, _res, next) => next(new HttpError(429, 'RATE_LIMITED', 'Too many requests.')) }));
+  // Reading a session/list must not consume the sensitive-write/login budget.
+  // Both remain IP bounded, in addition to the existing global /api limiter.
+  const reads=rateLimit({windowMs:60000,limit:120,standardHeaders:'draft-8',legacyHeaders:false,
+    handler:(_req,_res,next)=>next(new HttpError(429,'RATE_LIMITED','Too many requests.'))});
+  const writes=rateLimit({ windowMs: 900000, limit: 60, standardHeaders: 'draft-8', legacyHeaders: false,
+    handler: (_req, _res, next) => next(new HttpError(429, 'RATE_LIMITED', 'Too many requests.')) });
+  router.use((req,res,next)=>(req.method==='GET'?reads:writes)(req,res,next));
   router.use('/programs', express.json({ limit: '64kb', strict: true, inflate: false }));
   router.use(express.json({ limit: '2kb', strict: true, inflate: false }));
   const loginLimit = rateLimit({ windowMs: 900000, limit: 5, standardHeaders: 'draft-8', legacyHeaders: false,
@@ -69,8 +75,14 @@ export function adminRouter(config: Config, database?: Database) {
         }
         if (!request.is('application/json')) throw new HttpError(415, 'UNSUPPORTED_MEDIA_TYPE', 'JSON required.');
       };
+      if(request.path==='/reports'||request.path.startsWith('/reports/')){
+        const principal=await authorize('programs:review');
+        try{await handleReports(request,response,database,token!,checkCsrf);}catch(error){
+          if(error instanceof HttpError&&[401,403].includes(error.status))await repository.audit('rbac.denied',principal.id,'programs:review');throw error;
+        }return;
+      }
       if (request.path === '/programs' || request.path.startsWith('/programs/')) {
-        await handlePrograms(request, response, database, token, authorize, checkCsrf);
+        await handlePrograms(request, response, database, token, authorize, checkCsrf,config.PROGRAM_REVIEW_DAYS);
         return;
       }
       if (request.path === '/session' && request.method === 'GET') {

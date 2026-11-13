@@ -1,5 +1,11 @@
 # Stage 13 — Kazakh / Russian frontend localization
 
+Stage 15 extends coverage with `/profile/children`: current shared dictionary 362 paired
+entries, account dictionary 63 paired entries. The current 71-scenario localization
+browser suite covers this route in both languages, child CRUD/confirmation, private
+recommendations, loading/empty/error states and immediate draft-preserving language
+switching. Stage 13 verification numbers below are the historical baseline.
+
 The existing URL locale (`?lang=kk` / `?lang=ru`) is the only language source.
 Missing or unsupported language defaults to Kazakh. The shared header dropdown
 updates the current route without reloading; navigation carries the current locale,
@@ -87,3 +93,11 @@ frontend localization behavior, not a new backend security or full WCAG certific
 Verified results (2026-11-13): unit tests **48/48**, localization browser **57/57**,
 existing browser regression suite **29/29**; frontend lint, TypeScript checks and
 production build **PASS**. No unresolved localization test failures remain.
+
+## Stage 16 coverage
+
+Both shared dictionaries now contain 417 matching entries; the existing account dictionaries remain 63 entries each. New status/verification/filter/report/history UI is localized without a second switcher. Browser localization suite: 89/89 PASS, including 23 public/user/admin route patterns in both languages, overview/reports, confirmation actions, report submission/moderation, filters and language persistence. Official program content is not invented or translated without verified content.
+
+Public catalog/password UX update: shared dictionaries contain 421 matching keys and account dictionaries 65 each. Standard category labels translate by stable slugs; operator-defined labels and official program content retain their source-language fallback. Password boundaries now have separate friendly short/long messages without exposing encoding details. The sole header switcher and URL locale state are unchanged.
+
+Admin reference-data update: known program categories, 20 Kazakhstan administrative units, three neutral support needs and DEMO labels use the existing KZ/RU dictionaries. Region and support selections persist across locale changes on both creation and edit forms. Original official program text and custom reference names are retained without invented translations.

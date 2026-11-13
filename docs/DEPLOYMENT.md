@@ -1,5 +1,11 @@
 # Deployment runbook — Stage 7
 
+Stage 15 additionally requires additive migration 010 and the narrow child-profile
+permissions in [CHILD_PROFILES.md](../backend/CHILD_PROFILES.md). Missing/overbroad rights
+fail the production safety gate. An authorized operator must review private-route log
+redaction, child-data retention/backups and erasure reconciliation before public launch;
+this implementation did not change any production grants or infrastructure.
+
 Stage 12 additionally requires migration 008 and the narrow profile/saved-table grants in
 [USER_PROFILE.md](../backend/USER_PROFILE.md). Apply using the migrator before starting the
 new runtime; missing/unsafe privileges fail the existing production startup gate. No local
@@ -240,3 +246,7 @@ fixtures and an isolated Chrome profile, not dev accounts. Keep real privileged 
 passwords out of CLI arguments/screenshots/logs. Test actual TLS cookies/401/403/409/logout and
 keyboard/assistive technology in staging. Local browser checks do not certify full WCAG or
 production readiness. No deployment or new credentials are configured by this stage.
+
+## Stage 16 deployment delta
+
+Apply append-only 011 with separate migration credentials after verifying the target and taking a backup. No local role changes were made. Runtime needs narrow program expires_on/source_needs_recheck column grants, SELECT/INSERT-only program_verifications and narrow report INSERT/UPDATE grants; production startup rejects unsafe grants. Full matrix and migration/rollback precautions: [verification runbook](../backend/VERIFICATION.md). PROGRAM_REVIEW_DAYS defaults to 180 (7-730). Review legacy published records manually before launch; no historical verification is fabricated. Exercise restricted-role HTTPS staging, abuse monitoring, report privacy/retention procedures and restore testing before deployment. No scheduler or automatic renewal is installed.

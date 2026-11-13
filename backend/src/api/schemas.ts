@@ -23,10 +23,13 @@ export const programParams = z.strictObject({ id: z.uuid() });
 export const matchingQuery=programQuery.extend({need:slug.optional()});
 export const matchingDetailsQuery=z.strictObject({age:integer(0,17).optional(),region:slug.optional(),need:slug.optional()});
 export const contactBody = z.strictObject({
+  submissionId:z.uuid().optional(),
   senderName: z.string().trim().min(1).max(100).refine(value => safeText(value)),
   email: z.email().max(254),
   message: z.string().trim().min(1).max(2000).refine(value => safeText(value, true)),
 });
+export const reportBody=z.strictObject({reason:z.enum(['incorrect','outdated','source_broken','other']),
+ explanation:z.string().trim().max(1000).refine(value=>safeText(value,true)).transform(v=>v||null).nullable().optional()});
 export type Pagination = z.infer<typeof paginationQuery>;
 export type ProgramFilters = z.infer<typeof programQuery>;
 export type ContactInput = z.infer<typeof contactBody>;

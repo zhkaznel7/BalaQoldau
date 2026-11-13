@@ -43,9 +43,16 @@ test('Stage 11 authentication/security on explicitly verified database; syntheti
       assert.equal((await call('/auth/register','POST',{ email,password },{ Origin:'https://evil.example' })).status,403);
       assert.equal((await call('/auth/session?userId=x')).status,400);
       const short=await call('/auth/register','POST',{email,password:'x'.repeat(7)});
-      assert.equal(short.status,400);assert.equal((await short.json()).error.code,'PASSWORD_POLICY');
+      assert.equal(short.status,400);assert.equal((await short.json()).error.code,'PASSWORD_TOO_SHORT');
+      for(const path of ['/auth/register','/auth/login','/auth/password-reset/confirm']){
+        const response=await call(path,'POST',{...(path.endsWith('/confirm')?{token:'a'.repeat(64)}:{email}),password:'😀'.repeat(65)});
+        assert.equal(response.status,400);const body=await response.json();assert.equal(body.error.code,'PASSWORD_TOO_LONG');
+        assert.doesNotMatch(JSON.stringify(body),/UTF|байт|256/);
+      }
     });
     await t.test('registration hashes Argon2id; duplicates never overwrite existing data', async () => {
+      // Boundary probes use the real limiter; isolate this scenario's request budget.
+      await start();
       const input = { email,password,language:'ru' };
       assert.equal((await call('/auth/register','POST',input)).status,202);
       const row = (await db.query('SELECT id,password_hash,language FROM balaqoldau.user_accounts WHERE email=$1',[email])).rows[0];
@@ -98,7 +105,7 @@ test('Stage 11 authentication/security on explicitly verified database; syntheti
       const candidate=await repo.loginCandidate(email), logged=userToken(); assert.equal(await repo.authenticate(active,logged,userToken(),userId,candidate.hash,3600),true);
       const token = new URLSearchParams(new URL(deliveries[0].url).hash.slice(1)).get('token');
       const short=await call('/auth/password-reset/confirm','POST',{token,password:'x'.repeat(7)});
-      assert.equal(short.status,400);assert.equal((await short.json()).error.code,'PASSWORD_POLICY');
+      assert.equal(short.status,400);assert.equal((await short.json()).error.code,'PASSWORD_TOO_SHORT');
       assert.equal((await call('/auth/password-reset/confirm','POST',{ token,password:'Reset8x!' })).status,204);
       assert.equal(await repo.session(logged),undefined);
       cookie=undefined; await session();

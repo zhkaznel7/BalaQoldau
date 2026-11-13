@@ -1,5 +1,7 @@
 # BalaQoldau backend — Stage 10.1
 
+Stage 16: [verification lifecycle, API contracts, migration 011, runtime grants and operations](VERIFICATION.md). Apply append-only 011 before this release. No existing records or roles are reset; locally verify balaqoldau_dev first.
+
 Stage 15: [child-profile API, privacy, migration 010 and operator requirements](CHILD_PROFILES.md).
 Protected `/api/auth/children` CRUD and recommendations reuse existing user sessions,
 CSRF and Stage 14 matching. Apply 010 before starting this version; no real profiles
@@ -157,7 +159,7 @@ Invalid query/body/cookie, CSRF/origin және media type қауіпсіз 4xx;
 Admin UI/API бір origin-де reverse proxy арқылы қызмет етуі тиіс; cross-origin credentialed
 CORS қосылған жоқ. Public CORS/API өзгермейді. Production тек HTTPS сұрауын қабылдайды;
 trusted loopback proxy forwarding headers-ті overwrite етуі тиіс.
-Login: IP бойынша 5 attempts/15 minutes (success қоса), bootstrap/admin 60/15 minutes.
+Login: IP бойынша 5 attempts/15 minutes (success қоса), admin writes 60/15 minutes; admin GET reads 120/minute, additionally bounded by the existing global API limiter.
 Limiter memory-based, single-process: multi-instance алдында shared/edge limiter қажет;
 distributed credential stuffing үшін account-aware/MFA controls бөлек review күтеді.
 RBAC/admin UI/user registration/password reset API бұл кезеңге кірмейді.
@@ -515,3 +517,25 @@ Stage 7: [deployment/least-privilege/migration/rollback](../docs/DEPLOYMENT.md),
 [security/contact retention](../docs/SECURITY.md), production env мысалы —
 `.env.production.example`. Рөлдер өзгермеді; cleanup command бар, scheduling қосылмады; нақты verification
 нәтижесі [PROGRESS](../PROGRESS.md) ішінде. Production іске қосылған жоқ.
+
+## Public catalog taxonomy update
+
+Migration 012_catalog_categories.sql adds four stable category rows (benefits, free-courses, grants, clubs) using ON CONFLICT DO NOTHING. It changes no program records. After verifying the authorized database, use the existing build and db:migrate commands; locally use balaqoldau_dev only. GET /api/categories always includes these entries, plus categories with public programs. Filters still use category slug parameters, never translated keyword labels. Empty catalogs return honest empty program results. Password error code details: [USER_AUTH.md](USER_AUTH.md).
+
+## Admin reference data
+
+[Region/support taxonomy, sources, nationwide semantics and migration 013](REFERENCE_DATA.md). Only the verified local balaqoldau_dev was migrated. Existing IDs and associations remain intact. Admin forms translate stable reference slugs; real programs and child locations reject DEMO regions. Migration and runtime permissions are unchanged.
+
+## Admin session verification and rate limits
+
+Session reliability fix: all admin reads previously shared 60 requests per 15 minutes with writes. Each verification uses GET /api/admin/session and /api/admin/access, so focus/pageshow/visibility events and StrictMode could exhaust that pool. The client then discarded its access state on 429/network failure even though the server cookie/session remained valid. The transport did not automatically retry writes.
+
+Current limits: GET admin reads 120/IP/minute; other admin requests 60/IP/15 minutes; POST login remains 5/IP/15 minutes including successful attempts, plus the unchanged database account-attempt guard. The global /api limiter and strict proxy/origin checks still apply. No endpoint is exempt from all limits. Windows/stores remain process-local; multi-instance/shared-NAT deployments must size their ingress controls appropriately.
+
+Session and access GETs share in-flight work only, not a long-lived authentication cache. Abort cancels one subscriber without creating another network request. Each underlying verification read has a 10-second timeout. Background event checks coalesce and have a 15-second minimum spacing; the existing 60-second periodic check remains. Explicit retries never bypass Retry-After. Seconds and HTTP-date values are accepted; 429 without a usable header backs off five seconds. No automatic mutation retries are introduced.
+
+A temporary 429, 500/503 or network/timeout failure preserves the last verified UI session and unsaved form, with a localized warning and safe read retry. Initial unknown sessions remain blocked until verified. 401 (or authenticated:false from /session) removes authenticated UI; a verification 403 blocks the protected UI without sending logout. Every backend operation still checks current permissions/session; cached UI is never authorization. Late pre-login 401 responses cannot expire a newer successful login.
+
+Cookies remain HttpOnly, SameSite=Strict, host-only; Secure and __Host- prefix in production with path /, local path /api/admin. Relative same-origin fetch uses credentials:same-origin and cache:no-store. Production must keep frontend/API on the documented same origin; no credentials or cookies are logged. No database, role, credential, migration or authentication lifetime changes were made.
+
+Manual verification: open http://localhost:5173/admin/programs, navigate repeatedly between list/new/edit, then refresh. DevTools should show one /session + /access pair for a check and no new session checks merely from internal navigation. With isolated QA fixtures, make session/access return 429 plus Retry-After:5: the draft and navigation remain, retry is disabled until the delay ends, then an explicit retry recovers. Test 503/offline similarly; 403 blocks access, and a real expired session/401 redirects to login. Do not invalidate real accounts or spam a shared development login to reproduce limits.

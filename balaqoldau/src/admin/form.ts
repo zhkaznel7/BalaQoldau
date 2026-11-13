@@ -1,13 +1,14 @@
 import {tr} from '../i18n/ui.ts';
-import type { Program, ProgramInput } from './types.ts';
-export interface FormValues { slug: string; category: string; title: string; description: string; sourceUrl: string; sourceName: string; applyUrl: string; deadline: string;
+import type { Program, ProgramInput,Taxonomy } from './types.ts';
+import {isDemoReference} from '../api/reference-data.ts';
+export interface FormValues { slug: string; category: string; title: string; description: string; sourceUrl: string; sourceName: string; applyUrl: string; deadline: string;expiresOn:string;
   ageMin: string; ageMax: string; regions: string[]; familyCategories: string[]; isDemo: boolean;eligibilityComplete:boolean }
 export function initialForm(program?: Program): FormValues {
-  return { eligibilityComplete:program?.eligibilityComplete??false,slug: program?.slug ?? '', category: program?.category ?? '', title: program?.title ?? '', description: program?.description ?? '',
+  return { expiresOn:program?.expiresOn??'',eligibilityComplete:program?.eligibilityComplete??false,slug: program?.slug ?? '', category: program?.category ?? '', title: program?.title ?? '', description: program?.description ?? '',
     sourceUrl: program?.sourceUrl ?? '', sourceName: program?.sourceName ?? '', applyUrl: program?.applyUrl ?? '', deadline: program?.deadline ?? '',
     ageMin: String(program?.ageMin ?? 0), ageMax: String(program?.ageMax ?? 17), regions: program?.regions ?? [], familyCategories: program?.familyCategories ?? [], isDemo: program?.isDemo ?? false };
 }
-export function validateProgramForm(value: FormValues): Partial<Record<keyof FormValues, string>> {
+export function validateProgramForm(value: FormValues,taxonomy?:Taxonomy): Partial<Record<keyof FormValues, string>> {
   const errors: Partial<Record<keyof FormValues, string>> = {};
   if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(value.slug) || value.slug.length > 120) errors.slug = tr("m042");
   if (!value.category) errors.category = tr("m043");
@@ -24,10 +25,16 @@ export function validateProgramForm(value: FormValues): Partial<Record<keyof For
   if (value.deadline && (!/^\d{4}-\d{2}-\d{2}$/.test(value.deadline) || Number.isNaN(Date.parse(value.deadline)) || new Date(value.deadline).toISOString().slice(0,10) !== value.deadline)) errors.deadline = tr("m050");
   if (value.regions.length > 50) errors.regions = tr("m051");
   if (value.familyCategories.length > 50) errors.familyCategories = tr("m052");
+  if(taxonomy){
+    const available=(kind:keyof Taxonomy,slug:string)=>taxonomy[kind].some(item=>item.slug===slug&&(value.isDemo||!isDemoReference(item)));
+    if(!available('categories',value.category))errors.category=tr('m043');
+    for(const key of ['regions','familyCategories'] as const)if(value[key].some(slug=>!available(key,slug)))errors[key]=tr('m456');
+  }
+  if(value.expiresOn&&(!/^\d{4}-\d{2}-\d{2}$/.test(value.expiresOn)||Number.isNaN(Date.parse(value.expiresOn))||new Date(value.expiresOn).toISOString().slice(0,10)!==value.expiresOn))errors.expiresOn=tr('m050');
   return errors;
 }
 export function programPayload(value: FormValues): ProgramInput {
-  return { ...value, title: value.title.trim(), description: value.description.trim(), sourceName: value.sourceName.trim() || null,
+  return { ...value,expiresOn:value.expiresOn||null, title: value.title.trim(), description: value.description.trim(), sourceName: value.sourceName.trim() || null,
     sourceUrl: value.sourceUrl || null, applyUrl: value.applyUrl || null, deadline: value.deadline || null,
     ageMin: Number(value.ageMin), ageMax: Number(value.ageMax) };
 }

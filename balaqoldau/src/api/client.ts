@@ -10,7 +10,13 @@ export interface Program {
   regions: string[]; familyCategories: string[];
 }
 export interface Page<T> { data: T[]; pagination: { page: number; limit: number; total: number; totalPages: number } }
-export interface ContactInput { senderName: string; email: string; message: string }
+export interface ContactInput {
+  senderName: string;
+  email: string;
+  message: string;
+  submissionId?: string;
+}
+export interface ReportInput {reason:'incorrect'|'outdated'|'source_broken'|'other';explanation:string|null}
 export class ApiError extends Error {
   readonly status: number;
   constructor(status: number, message?: string) {
@@ -78,7 +84,7 @@ function apiBase(value: string): string {
 }
 export function createApi(baseUrl = '/api', fetcher: typeof fetch = globalThis.fetch) {
   const base = apiBase(baseUrl);
-  async function request<T>(path: string, parse: (value: unknown) => T, signal?: AbortSignal, body?: ContactInput): Promise<T> {
+  async function request<T>(path: string, parse: (value: unknown) => T, signal?: AbortSignal, body?: ContactInput|ReportInput): Promise<T> {
     const controller = new AbortController();
     const abort = () => controller.abort();
     if (signal?.aborted) abort();
@@ -96,6 +102,10 @@ export function createApi(baseUrl = '/api', fetcher: typeof fetch = globalThis.f
     } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
   }
   return {
+    report(id:string,input:ReportInput,signal?:AbortSignal){
+      if(!isProgramId(id))return Promise.reject(new ApiError(404));
+      return request('/programs/'+encodeURIComponent(id)+'/reports',value=>{if(record(record(value).data).accepted!==true)return invalid();return {accepted:true as const};},signal,input);
+    },
     matches(query:string,signal?:AbortSignal){
       const params=new URLSearchParams(query);for(const key of [...params.keys()])if(!['category','region','age','need','q','page','limit'].includes(key))params.delete(key);
       return request('/program-matches?'+params.toString(),value=>parsePage(value,parseProgram),signal);

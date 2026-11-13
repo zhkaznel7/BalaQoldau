@@ -4,13 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { LogOut, ShieldCheck } from 'lucide-react';
-import { createAdminApi } from './api';
+import { createAdminApi,AdminError } from './api';
 import type { Access } from './types';
 import { roles } from './types';
 import { AdminContext } from './context';
 import { ProgramList, ProgramDetails, ProgramFormPage } from './Programs';
 import './admin.css';
 import LanguageSwitcher from '../components/LanguageSwitcher';
+import {AdminOverview,AdminReports} from './VerificationPanels';
 import ContentLanguageNotice from '../i18n/ContentLanguageNotice';
 
 export default function AdminApp() {
@@ -19,14 +20,18 @@ export default function AdminApp() {
   const [logoutError, setLogoutError] = useState('');
   const [loggingOut, setLoggingOut] = useState(false);
   const current = useRef<AbortController | null>(null);
+  const checking=useRef<Promise<void>|null>(null),lastCheck=useRef(0);
   const known = useRef(false);
   const navigate = useNavigate(), location = useLocation();
   const api = useMemo(() => createAdminApi(import.meta.env.VITE_ADMIN_API_BASE_URL || '/api/admin', fetch, () => {
     setState({ loading: false, access: null, error: null, expired: true });
   }), []);
-  const refresh = useCallback(async () => {
-    current.current?.abort();
+  const refresh = useCallback((force=true):Promise<void> => {
+    if(checking.current&&!current.current?.signal.aborted)return checking.current;
+    if(!force&&Date.now()-lastCheck.current<15000)return Promise.resolve();
+    lastCheck.current=Date.now();
     const controller = new AbortController(); current.current = controller;
+    const work=(async()=>{
     try {
       const session = await api.session(controller.signal);
       const access = session.authenticated ? await api.access(controller.signal) : null;
@@ -38,14 +43,18 @@ export default function AdminApp() {
     } catch (error) {
       if (!controller.signal.aborted) {
         const unauthorized = error instanceof Error && 'status' in error && error.status === 401;
-        setState({ loading: false, access: null, error: unauthorized ? null : error instanceof Error ? error : new Error(tr("m002")), expired: unauthorized });
+        const temporary=error instanceof AdminError&&(error.status===0||error.status===429||error.status>=500);
+        setState(previous=>({ loading: false, access: temporary?previous.access:null, error: unauthorized ? null : error instanceof Error ? error : new Error(tr("m002")), expired: unauthorized }));
       }
     }
+    })();
+    checking.current=work;void work.finally(()=>{if(checking.current===work)checking.current=null;});
+    return work;
   }, [api]);
   useEffect(() => { void refresh(); return () => current.current?.abort(); }, [refresh]);
   useEffect(() => {
     if (!state.access) return;
-    const check = () => { if (document.visibilityState !== 'hidden' && !api.busy()) void refresh(); };
+    const check = () => { if (document.visibilityState !== 'hidden' && !api.busy()) void refresh(false); };
     const timer = window.setInterval(check, 60000);
     window.addEventListener('focus', check); window.addEventListener('pageshow', check);
     document.addEventListener('visibilitychange', check);
@@ -70,17 +79,18 @@ export default function AdminApp() {
       {state.access && <><span className="admin-role"><ShieldCheck size={17} aria-hidden="true"/>{tr(roles[state.access.role])}</span><button type="button" disabled={loggingOut || api.busy()} onClick={() => void logout()}><LogOut size={17} aria-hidden="true"/> {loggingOut ? tr("m009") : tr("m010")}</button></>}
     </header>
     <div className={state.access ? 'admin-layout' : 'admin-login-layout'}>
-      {state.access && <nav className="admin-nav" aria-label={tr("m011")}><NavLink end to="/admin/programs">{""+tr("m012")+""}</NavLink>
+      {state.access && <nav className="admin-nav" aria-label={tr("m011")}><NavLink to="/admin/overview">{tr("m368")}</NavLink>{state.access.permissions.includes('programs:review')&&<NavLink to="/admin/reports">{tr("m392")}</NavLink>}<NavLink end to="/admin/programs">{""+tr("m012")+""}</NavLink>
         {state.access.permissions.includes('programs:review') && <Link to="/admin/programs?status=review">{""+tr("m013")+""}</Link>}
         {state.access.role === 'admin' && <Link to="/admin/programs?status=verified">{""+tr("m014")+""}</Link>}
         {state.access.permissions.includes('programs:draft:write') && <NavLink to="/admin/programs/new">{""+tr("m015")+""}</NavLink>}
       </nav>}
       <main id="admin-main" tabIndex={-1}>
         {state.access&&<ContentLanguageNotice/>}
+        {state.access&&state.error&&<SessionProblem error={state.error} retry={()=>void refresh()}/>}
         {logoutError && <div role="alert" className="admin-error"><p>{tr(logoutError)}</p><button onClick={() => void refresh()}>{""+tr("m016")+""}</button></div>}
-        {state.loading ? <p role="status">{""+tr("m017")+""}</p> : state.error ? <section><h1>{""+tr("m018")+""}</h1><p role="alert">{tr(state.error.message)}</p><button onClick={() => void refresh()}>{""+tr("m019")+""}</button></section>
+        {state.loading ? <p role="status">{""+tr("m017")+""}</p> : state.error&&!state.access ? <section><h1>{tr(state.error instanceof AdminError&&state.error.status===403?'m458':'m018')}</h1><SessionProblem error={state.error} retry={()=>void refresh()}/></section>
           : state.access ? <AdminContext.Provider key={state.access.id} value={{ api, access: state.access, refresh }}><Routes>
-            <Route path="login" element={<Navigate replace to="/admin/programs"/>}/><Route path="programs" element={<ProgramList/>}/>
+            <Route path="overview" element={<AdminOverview/>}/><Route path="reports" element={<AdminReports/>}/><Route path="login" element={<Navigate replace to="/admin/programs"/>}/><Route path="programs" element={<ProgramList/>}/>
             <Route path="programs/new" element={<ProgramFormPage/>}/><Route path="programs/:id/edit" element={<ProgramFormPage/>}/>
             <Route path="programs/:id" element={<ProgramDetails/>}/><Route index element={<Navigate replace to="/admin/programs"/>}/>
             <Route path="*" element={<><h1>{""+tr("m020")+""}</h1><Link to="/admin/programs">{""+tr("m021")+""}</Link></>}/>
@@ -89,6 +99,13 @@ export default function AdminApp() {
       </main>
     </div><footer className="admin-footer">{""+tr("m022")+""}</footer>
   </div>;
+}
+function SessionProblem({error,retry}:{error:Error;retry:()=>void}){
+  useUi();const [now,setNow]=useState(Date.now);
+  const until=error instanceof AdminError?error.retryAt:undefined;
+  useEffect(()=>{if(until===undefined||until<=now)return;const timer=window.setTimeout(()=>setNow(Date.now()),Math.min(1000,until-now));return()=>clearTimeout(timer);},[until,now]);
+  const seconds=until===undefined?0:Math.max(0,Math.ceil((until-now)/1000));
+  return <div role="alert" className="admin-error admin-session-problem"><p>{tr(error.message)}</p><button type="button" disabled={seconds>0} onClick={retry}>{seconds?tr('m459',{'0':seconds}):tr('m019')}</button></div>;
 }
 function Login({ signIn, expired }: { signIn: (email: string, password: string) => Promise<void>; expired: boolean }) {
   useUi();

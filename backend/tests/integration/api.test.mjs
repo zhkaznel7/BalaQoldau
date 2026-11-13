@@ -2,14 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { randomUUID } from 'node:crypto';
-import { parseTestDatabaseEnvironment } from '../../dist/db/config.js';
-import { createDatabasePool } from '../../dist/db/pool.js';
+import {openUserDatabase} from '../helpers/user-database.mjs';
 import { createApp } from '../../dist/app.js';
 import { parseEnvironment } from '../../dist/config/env.js';
 
 test('public API against dedicated PostgreSQL; every fixture and message is rolled back', async t => {
-  const config = parseTestDatabaseEnvironment(process.env);
-  const pool = createDatabasePool(config);
+  const {pool,config}=await openUserDatabase();
   const client = await pool.connect();
   let server;
   try {
@@ -78,7 +76,13 @@ test('public API against dedicated PostgreSQL; every fixture and message is roll
         assert.equal((await fetch(base + path)).status, 400);
       }
     });
-    await t.test('taxonomy is paginated and reveals only published-associated entries', async () => {
+    await t.test('taxonomy includes stable empty categories without revealing private taxonomy', async () => {
+      const categories=(await get('/api/categories')).data;
+      for(const slug of ['benefits','free-courses','grants','clubs']){
+        assert.ok(categories.some(item=>item.slug===slug));
+        const filtered=await get('/api/programs?category='+slug);
+        assert.equal(filtered.data.length,0,'No fabricated programs in empty standard categories');
+      }
       for (const path of ['/api/categories', '/api/regions']) {
         const result = await get(path);
         assert.ok(result.data.some(item => item.slug === token));

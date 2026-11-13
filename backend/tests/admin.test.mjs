@@ -14,6 +14,22 @@ async function serve(t, overrides = {}, database) {
   t.after(() => new Promise(resolve => { server.closeAllConnections(); server.close(resolve); }));
   return `http://127.0.0.1:${server.address().port}/api/admin`;
 }
+test('read verification does not consume the admin mutation budget; reads and login remain bounded',async t=>{
+  const csrf='b'.repeat(64),token='a'.repeat(64),id='11111111-1111-4111-8111-111111111111';
+  let authenticated=true;
+  const db={query:async sql=>({rows:sql.startsWith('SELECT s.admin_id')?[{adminId:authenticated?id:null,csrf,role:authenticated?'editor':null}]:[]})};
+  const base=await serve(t,{RATE_LIMIT_MAX:'1000'},db),headers={Cookie:'balaqoldau_admin='+token,Origin:'https://admin.example.kz','X-CSRF-Token':csrf,'Content-Type':'application/json'};
+  for(let i=0;i<65;i++)assert.equal((await fetch(base+(i%2?'/access':'/session'),{headers})).status,200);
+  authenticated=false;
+  for(let i=0;i<5;i++)assert.equal((await fetch(base+'/login',{method:'POST',headers,body:JSON.stringify({email:'test@example.com',password:'Synthetic wrong password!'})})).status,401);
+  const limited=await fetch(base+'/login',{method:'POST',headers,body:JSON.stringify({email:'test@example.com',password:'Synthetic wrong password!'})});
+  assert.equal(limited.status,429);assert.ok(Number(limited.headers.get('retry-after'))>0);
+  authenticated=true;
+  assert.equal((await fetch(base+'/session',{headers})).status,200,'Login failures cannot exhaust read verification budget');
+  let blocked;
+  for(let i=0;i<60;i++){const response=await fetch(base+'/session',{headers});if(response.status===429){blocked=response;break;}}
+  assert.ok(blocked,'Read endpoints retain their own bounded IP limiter');
+});
 
 test('admin endpoints are disabled by default, require HTTPS in production and reject foreign origins', async t => {
   const disabled = await serve(t, { ADMIN_ENABLED: 'false' });

@@ -1,5 +1,6 @@
 // Real built React → Express → isolated PostgreSQL. Synthetic fixtures; rollback only.
 import assert from 'node:assert/strict';
+import {regionSlugs} from '../src/api/reference-data.ts';
 import { once } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -7,8 +8,7 @@ import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createApp } from '../../backend/dist/app.js';
 import { parseEnvironment } from '../../backend/dist/config/env.js';
-import { parseTestDatabaseEnvironment } from '../../backend/dist/db/config.js';
-import { createDatabasePool } from '../../backend/dist/db/pool.js';
+import {openUserDatabase} from '../../backend/tests/helpers/user-database.mjs';
 import { runMigrations } from '../../backend/dist/db/migrate.js';
 import { hashPassword } from '../../backend/dist/admin/password.js';
 import { serveBuiltSite } from './helpers/built-site.mjs';
@@ -16,17 +16,16 @@ import { adminBrowser } from './helpers/admin-browser.mjs';
 import { inspectAccessibility, contrastRatio } from './helpers/accessibility.mjs';
 
 const cwd = fileURLToPath(new URL('../', import.meta.url));
-const config = parseTestDatabaseEnvironment(process.env);
-assert.equal(new URL(config.DATABASE_URL).pathname, '/balaqoldau_test');
-const pool = createDatabasePool(config);
+const {pool,config}=await openUserDatabase();
 let db, apiServer, site, browser, passed = 0;
 const pass = label => { passed++; console.log(`PASS ${passed}: ${label}`); };
 try {
-  assert.equal((await pool.query('SELECT current_database() AS name')).rows[0].name, 'balaqoldau_test');
+  assert.equal((await pool.query('SELECT current_database() AS name')).rows[0].name, process.env.GITHUB_ACTIONS==='true'?'balaqoldau_test':'balaqoldau_dev');
   await runMigrations(pool);
   db = await pool.connect(); await db.query('BEGIN');
   const suffix = randomUUID(), category = 'browser-' + suffix, password = 'Synthetic browser password only!';
   await db.query('INSERT INTO balaqoldau.categories(slug,name) VALUES($1,$2)', [category, 'TEST браузер санаты']);
+  await db.query('INSERT INTO balaqoldau.regions(slug,name) VALUES($1,$2)',['browser-region-'+suffix,'TEST browser region']);
   const hash = await hashPassword(password), users = {};
   for (const role of ['editor','reviewer','admin']) { const id = randomUUID(); users[role] = { id, email: id + '@example.com' }; await db.query('INSERT INTO balaqoldau.admin_users(id,email,password_hash,role) VALUES($1,$2,$3,$4)', [id, users[role].email, hash, role]); }
   // Static QA site chooses a free port before constructing the exact admin Origin.
@@ -56,8 +55,24 @@ try {
   await setValue('#program-title', 'TEST <script>window.__adminXss=1</script>'); await setValue('#program-slug', 'browser-program-' + suffix);
   await setValue('#program-category', category); await setValue('#program-description', 'TEST browser fixture; not an official opportunity');
   await setValue('#program-sourceName', 'TEST дереккөз'); await setValue('#program-sourceUrl', 'https://example.com/test/source');
+  for(const slug of regionSlugs)assert.equal(await evaluate(`!!document.querySelector('#program-regions input[value="${slug}"]')`),true);
+  await evaluate(`document.querySelector('#program-regions input[value="astana"]').click();document.querySelector('#program-regions input[value="akmola"]').click();document.querySelector('#program-familyCategories input[value="education-support"]').click()`);
+  await evaluate(`document.querySelector('.language-trigger').click()`);await evaluate(`document.querySelector('[role=menuitemradio][lang=ru]').click()`);
+  await until(`document.querySelector('#program-regions').innerText.includes('Акмолинская область')`);
+  assert.equal(await evaluate(`document.querySelector('#program-category option[value=benefits]').textContent`),'Пособия');
+  assert.equal(await evaluate(`document.querySelector('#program-regions input[value=astana]').checked&&document.querySelector('#program-familyCategories input[value="education-support"]').checked`),true);
+  await evaluate(`document.querySelector('.language-trigger').click()`);await evaluate(`document.querySelector('[role=menuitemradio][lang=kk]').click()`);
+  await until(`document.querySelector('#program-regions').innerText.includes('Ақмола облысы')`);
+  assert.equal(await evaluate(`document.querySelector('#program-title').value`),'TEST <script>window.__adminXss=1</script>');
+  await evaluate(`document.querySelector('#program-nationwide').click()`);
+  assert.equal(await evaluate(`document.querySelectorAll('#program-regions .admin-checks input:checked').length`),20);
+  await evaluate(`document.querySelector('#program-nationwide').click();document.querySelector('#program-regions input[value=astana]').click();document.querySelector('#program-regions input[value=akmola]').click()`);
+  pass('20 real regions, nationwide and multiple selection, localized categories/needs and language-preserved draft');
+  await evaluate(`[...document.querySelectorAll('.admin-checks label')].find(el=>el.textContent==='TEST browser region').querySelector('input').click()`);
   await button('Жобаны сақтау'); await until(`!!document.querySelector('#admin-detail-title')`);
   const id = (await evaluate('location.pathname')).split('/').at(-1);
+  assert.equal((await db.query('SELECT count(*)::int AS count FROM balaqoldau.program_regions WHERE program_id=$1',[id])).rows[0].count,3);
+  assert.equal((await db.query('SELECT count(*)::int AS count FROM balaqoldau.program_family_categories WHERE program_id=$1',[id])).rows[0].count,1);
   assert.equal(await evaluate('window.__adminXss===undefined'), true);
   assert.equal((await db.query('SELECT status FROM balaqoldau.programs WHERE id=$1', [id])).rows[0].status, 'draft'); pass('Editor creates a real private draft with real taxonomy');
   await action('Тексеруге жіберу'); await button('Шығу'); await until(`!!document.querySelector('#admin-email')`);
@@ -77,7 +92,7 @@ try {
   pass('real search/status filters and honest empty state');
   await browser.navigate(origin + '/admin/programs/' + id); await until(`!!document.querySelector('#admin-detail-title')`);
   await button('Мақұлдау'); assert.equal(await evaluate(`[...document.querySelectorAll('button')].find(x=>x.textContent==='Растау').disabled`), true);
-  await evaluate(`document.querySelector('.admin-confirm input[type=checkbox]').click()`); await button('Растау'); await until(`!!document.querySelector('.admin-success')`);
+  await evaluate(`document.querySelectorAll('.admin-confirm input[type=checkbox]').forEach(el=>el.click())`); await button('Растау'); await until(`!!document.querySelector('.admin-success')`);
   assert.equal(await evaluate(`[...document.querySelectorAll('button')].some(x=>x.textContent==='Жариялау')`), false); pass('Reviewer human-review confirmation and role-aware controls');
   await button('Шығу'); await until(`!!document.querySelector('#admin-email')`); await login('admin');
   await browser.navigate(origin + '/admin/programs/' + id); await until(`!!document.querySelector('#admin-detail-title')`);
@@ -118,7 +133,9 @@ try {
   } finally { db.query = originalQuery; }
   pass('safe real API read error has an explicit working retry');
   await db.query("UPDATE balaqoldau.admin_sessions SET created_at=clock_timestamp()-interval '2 hours',expires_at=clock_timestamp()-interval '1 second' WHERE admin_id=$1", [users.admin.id]);
-  await evaluate(`window.dispatchEvent(new Event('focus'))`); await until(`!!document.querySelector('#admin-email')`);
+  // A protected navigation must immediately reject the expired session, even during
+  // the background-verification event cooldown.
+  await evaluate(`document.querySelector('.admin-nav a[href="/admin/programs/new"]').click()`); await until(`!!document.querySelector('#admin-email')`);
   assert.equal(await evaluate(`!!document.querySelector('.admin-table-wrap')`), false); pass('expired sessions clear private UI and require login');
   assert.deepEqual(browser.errors, []);
   console.log(`Admin browser: ${passed}/${passed} PASS; real isolated Express/PostgreSQL, rollback only`);

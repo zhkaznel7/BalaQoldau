@@ -1,5 +1,18 @@
 # Stage 7 security review — 2026-11-11
 
+## Stage 15 update
+
+Optional, parent-owned child profiles now exist: see [current child privacy and API
+runbook](../backend/CHILD_PROFILES.md). Earlier "no children" statements describe their
+historical stages. Only optional nickname, completed age, existing region and program
+category interests are stored; no identity, birth date, address or medical/status fields.
+Fresh session ownership is enforced in SQL, mutations reuse CSRF and revisions, and
+deletion requires explicit confirmation. Private recommendations do not send child facts
+to public search URLs, infer sensitive family eligibility or persist results. Narrow
+production grants, infrastructure log redaction, inactivity/backup retention and restored
+backup erasure procedures require operator review before launch; no compliance claim,
+automated child retention or production infrastructure changes are made here.
+
 ## Stage 12 update
 
 User-requested optional full name/location and account-linked saved-program interests now
@@ -105,3 +118,9 @@ in a rolled-back balaqoldau_test transaction. Local test credentials are superus
 production restricted-role, TLS ingress, backup/restore and retention need staging drills.
 Automated layout/contrast/keyboard checks are not full WCAG compliance or NVDA/VoiceOver
 testing. Local timing is not field Core Web Vitals. Photo license remains unconfirmed.
+
+## Stage 16 verification and reports
+
+Independent review requires explicit source/information/eligibility checks and an immutable version-bound approval. Publish/archive require confirmation; only Admin can flag a source because the flag hides public availability. All transitions and report moderation use fresh RBAC, CSRF, row locks, versions and atomic audit writes. Public reports require no account, accept bounded text and have a separate 5-per-15-minute process-local IP limit. Reports never automatically change publication. Notes/explanations are private plaintext, not audit payloads; operators must redact request bodies in proxy/APM logs and establish a retention/erasure procedure for accidentally submitted personal information. No automated report deletion or shared multi-instance limiter is claimed. [Threat boundaries and grants](../backend/VERIFICATION.md).
+
+Admin session reliability: read verification and data GETs use 120/IP/minute independently of 60/IP/15-minute admin writes; the existing global limit, login 5/IP/15-minute limit, account guard, CSRF, RBAC, cookie scope and expiry remain. Transient errors retain only last-verified frontend state, never server privileges. Only actual unauthenticated responses clear it; verification 403 blocks UI access. In-flight deduplication, 10-second request deadlines and Retry-After-gated read retries prevent event storms. Stores remain per-process; distributed ingress/NAT sizing remains an operator responsibility.

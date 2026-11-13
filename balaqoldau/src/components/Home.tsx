@@ -2,22 +2,20 @@ import {tr} from '../i18n/ui.ts';
 import {useUi} from '../i18n/useUi.ts';
 import { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { useCatalog } from '../hooks/useCatalog';
 import { resultsUrl } from '../api/navigation';
 import SupportFinder from './SupportFinder';
-import ContentLanguageNotice from '../i18n/ContentLanguageNotice';
+import {categoryName} from '../api/categories';
 
-// Keyword navigation only: actual categories still come from the API.
+// Stable category navigation never inserts translated labels into the search query.
 const directions = [
-  { title: tr("m259"), query: 'жәрдемақы', text: tr("m260") },
-  { title: tr("m261"), query: 'тегін курс', text: tr("m262") },
-  { title: tr("m263"), query: 'үйірме', text: tr("m264") },
-  { title: tr("m265"), query: 'грант', text: tr("m266") },
+  { category:'benefits', text:'m260' },
+  { category:'free-courses', text:'m262' },
+  { category:'clubs', text:'m264' },
+  { category:'grants', text:'m266' },
 ];
 
 export default function Home() {
   useUi();
-  const catalog = useCatalog();
   const location = useLocation();
   useEffect(() => {
     if (location.hash !== '#how') return;
@@ -52,18 +50,11 @@ export default function Home() {
     <div className="container portal-directory">
       <section className="section directions" aria-labelledby="directions-heading">
         <div className="section-heading"><h2 id="directions-heading">{""+tr("m277")+""}</h2></div>
-        <div className="service-directions">{directions.map(({ title, query, text }) =>
-          <Link key={query} to={resultsUrl({ q: query })}><h3>{tr(title)}</h3><p>{tr(text)}</p></Link>)}</div>
+        <div className="service-directions">{directions.map(({ category, text }) =>
+          <Link key={category} to={resultsUrl({ category })}><h3>{categoryName(category)}</h3><p>{tr(text)}</p></Link>)}</div>
         <p className="section-caption">{""+tr("m278")+""}</p>
-      </section>
-      <section className="section categories" aria-labelledby="categories-heading"><ContentLanguageNotice/>
-        <div className="section-heading"><h2 id="categories-heading">{""+tr("m279")+""}</h2></div>
-        {catalog.loading && <p className="catalog-hint" role="status">{""+tr("m280")+""}</p>}
-        {!catalog.loading && !catalog.error && !catalog.categories.length && <p className="catalog-hint">{""+tr("m203")+""}</p>}
-        {!!catalog.categories.length && <div className="category-grid">{catalog.categories.map(category =>
-          <Link key={category.id} to={resultsUrl({ category: category.slug })} className="category-card"><h3>{category.name}</h3><p>{""+tr("m281")+""}</p></Link>)}</div>}
-        <Link className="inline-link" to="/results">{""+tr("m282")+""}</Link>
-      </section>
+        </section>
+      
     </div>
     <section className="container portal-help" aria-labelledby="help-heading"><h2 id="help-heading">{""+tr("m283")+""}</h2>
       <p><Link to="/find">{""+tr("m284")+""}</Link>{" "+tr("m285")+" "}<Link to="/contact">{""+tr("m286")+""}</Link>.</p>

@@ -1,5 +1,10 @@
 # Stage 14 — Explainable search and matching
 
+Stage 15 adds optional [private parent-owned child profiles](../backend/CHILD_PROFILES.md)
+without requiring them for public search. Their age/region/category preferences are
+used only by authenticated recommendations; family status is never inferred or stored.
+The public Stage 14 behavior and algorithm below remain unchanged.
+
 ## Scope and evidence
 
 Anonymous browsing remains public. No child profile, date of birth, income, medical
@@ -129,3 +134,9 @@ localization/search browser 61/61, existing browser 29/29, release-policy 15/15 
 Both TypeScript checks, lint and builds passed. Production-volume load testing and
 manual screen-reader testing are not claimed. Large catalog ILIKE/candidate-ranking
 performance needs measurement before scaling; no heavy search dependency was added.
+
+## Stage 16 availability boundary
+
+The public security-barrier view now excludes past deadlines/expiry dates, archived records and Admin source-recheck flags, consistently across catalog/details/matching/saved lists/child recommendations. Today is inclusive in Asia/Almaty. The pure matcher can still explain expired input in isolation, but public API candidates exclude it before pagination/ranking. Stale verification alone queues human rechecking and blocks new publication; it is not proof that an existing program has ended. [Availability policy](../backend/VERIFICATION.md).
+
+Reference-data clarification: nationwide is the explicit set of 20 real region memberships, not a new eligibility rule. The new support-need slugs education-support, creative-development and sports-activities are neutral product tags; no program is automatically assigned them. Child preferences still reference program categories. Unknown/incomplete source eligibility remains POSSIBLE. See backend/REFERENCE_DATA.md for source and safety details.

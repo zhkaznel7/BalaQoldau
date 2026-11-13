@@ -49,7 +49,7 @@ try{
   await evaluate(`document.querySelector('.account-links a[href^="/register"]').click()`);await until(`!!document.querySelector('#user-confirm')`);
   await setValue('#user-email',email);await setValue('#user-password','x'.repeat(7));await setValue('#user-confirm','x'.repeat(7));await button('Тіркелу');
   await until(`!!document.querySelector('.account-feedback.error')`);
-  assert.equal(await evaluate(`document.querySelector('.account-feedback').textContent.includes('8')&&document.querySelector('.account-feedback').textContent.includes('256')`),true);
+  assert.equal(await evaluate(`document.querySelector('.account-feedback').textContent.includes('8')&&!/UTF|256/.test(document.querySelector('.account-feedback').textContent)`),true);
   pass('seven-character registration is rejected with localized password bounds');
   await cleanAuth();
   await browser.navigate(origin+'/register?lang=ru');await until(`document.querySelector('.account-page')?.lang==='ru'&&!!document.querySelector('#user-confirm')`);await cleanAuth();

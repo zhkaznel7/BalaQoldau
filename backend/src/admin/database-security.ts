@@ -46,19 +46,33 @@ export const adminPrivilegeQuery = `SELECT
       AND has_table_privilege('balaqoldau.programs','SELECT')
       AND NOT has_table_privilege('balaqoldau.programs','DELETE,TRUNCATE,TRIGGER')
       AND NOT EXISTS(SELECT 1 FROM pg_attribute a WHERE a.attrelid='balaqoldau.programs'::regclass AND a.attnum>0 AND NOT a.attisdropped
-        AND ((a.attname NOT IN ('slug','category_id','title','description','is_demo','source_url','source_name','apply_url','age_min','age_max','deadline','created_by','status','eligibility_complete')
+        AND ((a.attname NOT IN ('slug','category_id','title','description','is_demo','source_url','source_name','apply_url','age_min','age_max','deadline','created_by','status','eligibility_complete','expires_on')
           AND has_column_privilege(a.attrelid,a.attnum,'INSERT'))
           OR (a.attname NOT IN ('slug','category_id','title','description','source_url','source_name','apply_url','age_min','age_max','deadline',
-            'submitted_by','reviewed_by','verified_at','updated_at','version','status','eligibility_complete') AND has_column_privilege(a.attrelid,a.attnum,'UPDATE'))))
-      AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['slug','category_id','title','description','is_demo','source_url','source_name','apply_url','age_min','age_max','deadline','created_by','status','eligibility_complete']) AS c(name)
+            'submitted_by','reviewed_by','verified_at','updated_at','version','status','eligibility_complete','expires_on','source_needs_recheck') AND has_column_privilege(a.attrelid,a.attnum,'UPDATE'))))
+      AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['slug','category_id','title','description','is_demo','source_url','source_name','apply_url','age_min','age_max','deadline','created_by','status','eligibility_complete','expires_on']) AS c(name)
         WHERE NOT has_column_privilege('balaqoldau.programs',c.name,'INSERT'))
-      AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['slug','category_id','title','description','source_url','source_name','apply_url','age_min','age_max','deadline','submitted_by','reviewed_by','verified_at','updated_at','version','status','eligibility_complete']) AS c(name)
+      AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['slug','category_id','title','description','source_url','source_name','apply_url','age_min','age_max','deadline','submitted_by','reviewed_by','verified_at','updated_at','version','status','eligibility_complete','expires_on','source_needs_recheck']) AS c(name)
         WHERE NOT has_column_privilege('balaqoldau.programs',c.name,'UPDATE'))
       AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['balaqoldau.categories','balaqoldau.regions','balaqoldau.family_categories']) AS t(name)
         WHERE NOT has_table_privilege(t.name,'SELECT'))
       AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['balaqoldau.program_regions','balaqoldau.program_family_categories']) AS t(name)
         WHERE NOT has_table_privilege(t.name,'SELECT') OR NOT has_table_privilege(t.name,'INSERT') OR NOT has_table_privilege(t.name,'DELETE')
           OR has_table_privilege(t.name,'TRUNCATE,TRIGGER') OR has_any_column_privilege(t.name,'UPDATE'))
+      AND has_table_privilege('balaqoldau.program_verifications','SELECT')
+      AND NOT has_table_privilege('balaqoldau.program_verifications','UPDATE,DELETE,TRUNCATE,TRIGGER')
+      AND NOT has_any_column_privilege('balaqoldau.program_verifications','UPDATE')
+      AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['program_id','actor_id','program_version','decision','source_reviewed','information_reviewed','eligibility_reviewed','notes','source_url','source_name']) c(name)
+        WHERE NOT has_column_privilege('balaqoldau.program_verifications',c.name,'INSERT'))
+      AND NOT EXISTS(SELECT 1 FROM pg_attribute a WHERE a.attrelid='balaqoldau.program_verifications'::regclass AND a.attnum>0 AND NOT a.attisdropped
+        AND a.attname NOT IN('program_id','actor_id','program_version','decision','source_reviewed','information_reviewed','eligibility_reviewed','notes','source_url','source_name') AND has_column_privilege(a.attrelid,a.attnum,'INSERT'))
+      AND has_table_privilege('balaqoldau.program_reports','SELECT')
+      AND NOT has_table_privilege('balaqoldau.program_reports','DELETE,TRUNCATE,TRIGGER')
+      AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['program_id','reason','explanation']) c(name) WHERE NOT has_column_privilege('balaqoldau.program_reports',c.name,'INSERT'))
+      AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['status','version','moderated_by','updated_at']) c(name) WHERE NOT has_column_privilege('balaqoldau.program_reports',c.name,'UPDATE'))
+      AND NOT EXISTS(SELECT 1 FROM pg_attribute a WHERE a.attrelid='balaqoldau.program_reports'::regclass AND a.attnum>0 AND NOT a.attisdropped
+        AND ((a.attname NOT IN('program_id','reason','explanation') AND has_column_privilege(a.attrelid,a.attnum,'INSERT'))
+          OR(a.attname NOT IN('status','version','moderated_by','updated_at') AND has_column_privilege(a.attrelid,a.attnum,'UPDATE'))))
       AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['event','actor_id','target_id','permission','previous_role','new_role','previous_status','new_status']) AS c(name)
         WHERE NOT has_column_privilege('balaqoldau.admin_audit_log',c.name,'INSERT')) AS safe
       FROM pg_roles r WHERE r.rolname=current_user`;
