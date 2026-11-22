@@ -15,21 +15,21 @@ test('public API against dedicated PostgreSQL; every fixture and message is roll
     assert.equal(identity.name, decodeURIComponent(new URL(config.DATABASE_URL).pathname.slice(1)));
     await client.query('BEGIN');
     const token = 'test-api-' + randomUUID();
-    const category = (await client.query('INSERT INTO balaqoldau.categories(slug,name) VALUES ($1,$2) RETURNING id', [token, 'TEST category'])).rows[0].id;
-    const hiddenCategory = (await client.query('INSERT INTO balaqoldau.categories(slug,name) VALUES ($1,$2) RETURNING id', [token + '-hidden', 'TEST hidden category'])).rows[0].id;
+    const category = (await client.query("SELECT id FROM balaqoldau.categories WHERE slug='clubs'")).rows[0].id;
+    const hiddenCategory = (await client.query('INSERT INTO balaqoldau.categories(slug,name) VALUES ($1,$2) RETURNING id', ['demo-' + token, 'DEMO hidden category'])).rows[0].id;
     const region = (await client.query('INSERT INTO balaqoldau.regions(slug,name) VALUES ($1,$2) RETURNING id', [token, 'TEST region'])).rows[0].id;
     const hiddenRegion = (await client.query('INSERT INTO balaqoldau.regions(slug,name) VALUES ($1,$2) RETURNING id', [token + '-hidden', 'TEST hidden region'])).rows[0].id;
     const ids = {};
-    for (const [key, status, demo, min, max] of [['first', 'published', false, 0, 6], ['second', 'published', false, 6, 17], ['draft', 'draft', false, 0, 17], ['verified', 'verified', false, 0, 17], ['demo', 'draft', true, 0, 17]]) {
-      const published = status === 'published';
+    for (const [key, status, demo, min, max] of [['first', 'published', false, 0, 6], ['second', 'published', false, 6, 17], ['draft', 'draft', false, 0, 17], ['verified', 'verified', false, 0, 17], ['demo', 'draft', true, 0, 17], ['legacy-demo-category','published',false,0,17], ['legacy-demo-marker','published',false,0,17]]) {
+      const visible = key === 'first' || key === 'second';
       const result = await client.query(`INSERT INTO balaqoldau.programs
         (slug,category_id,title,description,status,is_demo,source_url,source_name,verified_at,age_min,age_max,apply_url)
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,now(),$9,$10,$11) RETURNING id`,
-      [token + '-' + key, published ? category : hiddenCategory, `${demo ? 'DEMO' : 'TEST'} ${token} ${key}`,
+      [token + '-' + key, visible || key==='legacy-demo-marker' ? category : hiddenCategory, `${demo || key==='legacy-demo-marker' ? 'DEMO' : 'TEST'} ${token} ${key}`,
         'Transient integration fixture, not an official program.', status, demo, 'https://example.com/test/source',
         'TEST source', min, max, 'https://example.com/test/apply']);
       ids[key] = result.rows[0].id;
-      await client.query('INSERT INTO balaqoldau.program_regions(program_id,region_id) VALUES ($1,$2)', [ids[key], published ? region : hiddenRegion]);
+      await client.query('INSERT INTO balaqoldau.program_regions(program_id,region_id) VALUES ($1,$2)', [ids[key], visible ? region : hiddenRegion]);
     }
     const appConfig = parseEnvironment({ NODE_ENV: 'test', CORS_ALLOWED_ORIGINS: 'https://example.kz', RATE_LIMIT_MAX: '200' });
     server = createApp(appConfig, client).listen(0, '127.0.0.1');
@@ -56,7 +56,7 @@ test('public API against dedicated PostgreSQL; every fixture and message is roll
       assert.equal(empty.pagination.total, 2);
     });
     await t.test('category/region/age/text filters intersect and boundaries are inclusive', async () => {
-      assert.equal((await get(query({ category: token, region: token, age: '6' }))).data.length, 2);
+      assert.equal((await get(query({ category: 'clubs', region: token, age: '6' }))).data.length, 2);
       assert.deepEqual((await get(query({ age: '0' }))).data.map(item => item.id), [ids.first]);
       assert.deepEqual((await get(query({ age: '17' }))).data.map(item => item.id), [ids.second]);
       assert.equal((await get(query({ region: 'no-such-region' }))).data.length, 0);
@@ -67,27 +67,33 @@ test('public API against dedicated PostgreSQL; every fixture and message is roll
       const detail = await get('/api/programs/' + ids.first);
       assert.equal(detail.data.id, ids.first);
       assert.deepEqual(detail.data.regions, [token]);
-      for (const id of [ids.draft, ids.verified, ids.demo, randomUUID()]) {
+      for (const id of [ids.draft, ids.verified, ids.demo, ids['legacy-demo-category'], ids['legacy-demo-marker'], randomUUID()]) {
         const response = await fetch(base + '/api/programs/' + id);
         assert.equal(response.status, 404);
         assert.equal((await response.json()).error.code, 'NOT_FOUND');
       }
+      for (const id of [ids['legacy-demo-category'], ids['legacy-demo-marker']]) {
+        assert.equal((await fetch(base + '/api/program-matches/' + id)).status, 404);
+        assert.equal((await fetch(base + '/api/programs/' + id + '/reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason:'incorrect'})})).status,404);
+      }
+      assert.deepEqual((await get('/api/program-matches?category=demo-'+token)).data,[]);
       for (const path of ['/api/programs/invalid', '/api/programs/' + ids.first + '?status=draft', '/api/programs/%ZZ']) {
         assert.equal((await fetch(base + path)).status, 400);
       }
     });
     await t.test('taxonomy includes stable empty categories without revealing private taxonomy', async () => {
       const categories=(await get('/api/categories')).data;
+      assert.deepEqual(categories.map(item=>item.slug).sort(),['benefits','clubs','free-courses','grants']);
       for(const slug of ['benefits','free-courses','grants','clubs']){
         assert.ok(categories.some(item=>item.slug===slug));
         const filtered=await get('/api/programs?category='+slug);
-        const expected=(await client.query('SELECT p.id FROM balaqoldau.published_programs p JOIN balaqoldau.categories c ON c.id=p.category_id WHERE c.slug=$1',[slug])).rows;
+        const expected=(await client.query('SELECT p.id FROM balaqoldau.published_programs p JOIN balaqoldau.categories c ON c.id=p.category_id WHERE c.slug=$1 AND p.id<>$2',[slug,ids['legacy-demo-marker']])).rows;
         assert.equal(filtered.pagination.total,expected.length,'Catalog must reflect existing published data, not assume development categories are empty');
         assert.ok(filtered.data.every(item=>expected.some(row=>row.id===item.id)),'No fabricated or unpublished programs');
       }
       for (const path of ['/api/categories', '/api/regions']) {
         const result = await get(path);
-        assert.ok(result.data.some(item => item.slug === token));
+        assert.equal(result.data.some(item => item.slug === token),path==='/api/regions');
         assert.ok(result.data.every(item => item.slug !== token + '-hidden'));
         assert.equal((await get(path + '?limit=1')).data.length, 1);
         assert.equal((await fetch(base + path + '?q=unsupported')).status, 400);

@@ -2,16 +2,18 @@ import { Router } from 'express';
 import type { RequestHandler } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import type { Database } from './repository.ts';
-import { createRepository } from './repository.ts';
+import { createRepository, publicProgramIds } from './repository.ts';
 import { contactBody, emptyInput, paginationQuery, programParams, programQuery, validate } from './schemas.ts';
 import { HttpError } from '../middleware/errors.ts';
 import {matchingQuery,matchingDetailsQuery} from './schemas.ts';
 import {findMatches} from '../matching/repository.ts';
 import {reportBody} from './schemas.ts';
 import {z} from 'zod';
-import {resolveRecommendationIntent} from '../ai/classifier.ts';
+import {conversationContext, conversationIntent} from '../ai/conversation.ts';
+import {recommendationSuggestions} from '../matching/repository.ts';
 
-const recommendationBody = z.strictObject({query: z.string().trim().min(1).max(400), consent: z.literal(true)});
+const recommendationBody = z.strictObject({query: z.string().trim().min(1).max(400), consent: z.literal(true),
+  context: conversationContext.nullable().optional()});
 
 export function apiRouter(reviewDays: number, database?: Database) {
   const router = Router();
@@ -27,14 +29,18 @@ export function apiRouter(reviewDays: number, database?: Database) {
     windowMs: 60_000, limit: 6, standardHeaders: 'draft-8', legacyHeaders: false,
     handler: (_request, _response, next) => next(new HttpError(429, 'RATE_LIMITED', 'Too many requests.')),
   });
+  router.route('/ai/suggestions').get(async (request, response) => {
+    validate(emptyInput, request.query);
+    response.json({data: database ? await recommendationSuggestions(database, reviewDays) : []});
+  }).all(methods('GET, HEAD, OPTIONS'));
   router.route('/ai/recommendations').post(aiLimit, async (request, response) => {
     validate(emptyInput, request.query);
     if (!request.is('application/json')) throw new HttpError(415, 'UNSUPPORTED_MEDIA_TYPE', 'Expected application/json.');
-    const {query} = validate(recommendationBody, request.body);
-    const {intent, mode} = resolveRecommendationIntent(query);
+    const {query, context} = validate(recommendationBody, request.body);
+    const {intent, mode, followUp} = conversationIntent(query, context);
     response.setHeader('X-Recommendation-Mode', mode);
-    if (Object.values(intent).every(value => value === null)) {
-      response.json({intent, data: []});
+    if (followUp || Object.values(intent).every(value => value === null)) {
+      response.json({intent, data: [], followUp});
       return;
     }
     if (!database) throw new HttpError(503, 'AI_UNAVAILABLE', 'Catalog search is unavailable.');
@@ -42,7 +48,7 @@ export function apiRouter(reviewDays: number, database?: Database) {
       age: intent.age ?? undefined, region: intent.region ?? undefined, need: intent.need ?? undefined,
       category: intent.category ?? undefined, page: 1, limit: 5, recommendationReviewDays: reviewDays,
     });
-    response.json({intent, data});
+    response.json({intent, data, followUp});
   }).all(methods('POST, OPTIONS'));
   router.route('/programs').get(async (request, response) => {
     const filters = validate(programQuery, request.query);
@@ -85,7 +91,7 @@ export function apiRouter(reviewDays: number, database?: Database) {
     if(!req.is('application/json'))throw new HttpError(415,'UNSUPPORTED_MEDIA_TYPE','Expected application/json.');
     const input=validate(reportBody,req.body);repository();
     const result=await database!.query(`INSERT INTO balaqoldau.program_reports(program_id,reason,explanation)
-      SELECT id,$2,$3 FROM balaqoldau.published_programs WHERE id=$1 RETURNING 1 AS accepted`,[id,input.reason,input.explanation??null]);
+      SELECT id,$2,$3 FROM (${publicProgramIds}) available WHERE id=$1 RETURNING 1 AS accepted`,[id,input.reason,input.explanation??null]);
     if(!result.rows.length)throw new HttpError(404,'NOT_FOUND','Program not found.');
     res.status(202).json({data:{accepted:true}});
   }).all(methods('POST, OPTIONS'));

@@ -11,7 +11,7 @@ test('anonymous matching SQL, pagination and visibility with rolled-back TEST fi
   const {pool}=await openUserDatabase();const db=await pool.connect();let server;
   try{
     await db.query('BEGIN');const slug='test-match-'+randomUUID();
-    const category=(await db.query('INSERT INTO balaqoldau.categories(slug,name) VALUES($1,$2) RETURNING id',[slug,'TEST category'])).rows[0].id;
+    const category=(await db.query("SELECT id FROM balaqoldau.categories WHERE slug='clubs'")).rows[0].id;
     const region=(await db.query('INSERT INTO balaqoldau.regions(slug,name) VALUES($1,$2) RETURNING id',[slug,'TEST region'])).rows[0].id;
     const family=(await db.query('INSERT INTO balaqoldau.family_categories(slug,name) VALUES($1,$2) RETURNING id',[slug,'TEST need'])).rows[0].id;
     const ids={};
@@ -23,14 +23,14 @@ test('anonymous matching SQL, pagination and visibility with rolled-back TEST fi
     ]){
       const id=randomUUID();ids[name]=id;
       await db.query(`INSERT INTO balaqoldau.programs(id,slug,category_id,title,description,status,is_demo,eligibility_complete,age_min,age_max,deadline,source_url,source_name,verified_at)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'https://example.com/test','TEST source',now())`,[id,slug+'-'+name,category,'TEST '+name,'Isolated TEST fixture, not official',status,demo,complete,min,max,deadline]);
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'https://example.com/test','TEST source',now())`,[id,slug+'-'+name,category,'TEST '+slug+' '+name,'Isolated TEST fixture, not official',status,demo,complete,min,max,deadline]);
       await db.query('INSERT INTO balaqoldau.program_regions(program_id,region_id) VALUES($1,$2)',[id,region]);
       await db.query('INSERT INTO balaqoldau.program_family_categories(program_id,family_category_id) VALUES($1,$2)',[id,family]);
     }
     await db.query('UPDATE balaqoldau.programs SET source_needs_recheck=true WHERE id=$1',[ids.recheck]);
     server=createApp(parseEnvironment({NODE_ENV:'test',CORS_ALLOWED_ORIGINS:'https://example.com'}),db).listen(0,'127.0.0.1');await once(server,'listening');
     const base='http://127.0.0.1:'+server.address().port+'/api';
-    const query=new URLSearchParams({category:slug,region:slug,age:'6',need:slug,limit:'2'});
+    const query=new URLSearchParams({category:'clubs',q:slug,region:slug,age:'6',need:slug,limit:'2'});
     const get=path=>fetch(base+path);
     await t.test('anonymous access, combined criteria, stable global order before pagination',async()=>{
       const all=[];
@@ -41,9 +41,9 @@ test('anonymous matching SQL, pagination and visibility with rolled-back TEST fi
       assert.deepEqual(all.map(p=>p.matching.status),['MATCH','MATCH','POSSIBLE','NOT_MATCH']);
       assert.deepEqual(all.map(p=>p.id),[...all].reverse().sort((a,b)=>compareMatches(a,b,{age:6,region:slug,need:slug})).map(p=>p.id));
       assert.deepEqual(all.slice(0,2).map(p=>p.id),[ids.first,ids.tie].sort());
-      assert.equal((await (await get('/programs?category='+slug+'&age=6&region='+slug)).json()).pagination.total,3,'legacy filters remain hard filters');
+      assert.equal((await (await get('/programs?category=clubs&age=6&region='+slug)).json()).pagination.total,3,'legacy filters remain hard filters');
       for(const input of [{},{age:0},{age:5,region:slug,need:slug},{age:10,region:slug,need:slug},{age:17,region:'other',need:slug},{age:6,region:slug,need:'other'},{age:6,region:'other',need:'other'}]){
-        const params=new URLSearchParams({category:slug,limit:'50',...Object.fromEntries(Object.entries(input).map(([k,v])=>[k,String(v)]))});
+        const params=new URLSearchParams({category:'clubs',q:slug,limit:'50',...Object.fromEntries(Object.entries(input).map(([k,v])=>[k,String(v)]))});
         const items=(await (await get('/program-matches?'+params)).json()).data;
         assert.deepEqual(items.map(p=>p.id),[...items].reverse().sort((a,b)=>compareMatches(a,b,input)).map(p=>p.id),'SQL and deterministic engine agree across missing/boundary/incompatible criteria');
       }
@@ -66,7 +66,7 @@ test('anonymous matching SQL, pagination and visibility with rolled-back TEST fi
       assert.equal((await get('/program-matches/'+ids.first+'?q=unexpected')).status,400);
     });
     await t.test('keyword SQL injection is literal, and column completeness remains false for legacy data',async()=>{
-      const result=await get('/program-matches?category='+slug+'&q='+encodeURIComponent("' OR true--"));assert.equal(result.status,200);assert.equal((await result.json()).pagination.total,0);
+      const result=await get('/program-matches?category=clubs&q='+encodeURIComponent("' OR true--"));assert.equal(result.status,200);assert.equal((await result.json()).pagination.total,0);
       const legacy=await (await get('/program-matches/'+ids.legacy+'?age=6&region='+slug+'&need='+slug)).json();assert.equal(legacy.data.matching.status,'POSSIBLE');
     });
   }finally{

@@ -1,5 +1,7 @@
 import {validFamilyContext} from './family.ts';
 import type {FamilyContext} from './family.ts';
+import {isPublicCategory} from '../api/categories.ts';
+import {isDemoReference} from '../api/reference-data.ts';
 export const childInterests=['education','creativity','sports'] as const;
 export type ChildInterest=typeof childInterests[number];
 export interface ChildDetails {fullName?:string|null;gender?:'female'|'male'|null;interests?:ChildInterest[]}
@@ -19,6 +21,15 @@ function details(value:{fullName?:unknown;gender?:unknown;interests?:unknown}):C
 export interface ChildInput extends ChildDetails {nickname:string|null;age:number;region:string;preferences:string[];familyContext?:FamilyContext|null}
 export interface Child extends ChildInput {id:string;version:number}
 export interface ChildOptions {regions:{slug:string;name:string}[];categories:{slug:string;name:string}[]}
+const interestNeeds={education:'education-support',creativity:'creative-development',sports:'sports-activities'} as const;
+
+export function childOpportunityUrl(child:Pick<Child,'age'|'region'|'interests'>, language:'kk'|'ru', interest?:ChildInterest) {
+  const params=new URLSearchParams({age:String(child.age),region:child.region,lang:language});
+  const selected=interest&&child.interests?.includes(interest)?interest:child.interests?.[0];
+  if (selected) params.set('need',interestNeeds[selected]);
+  return '/find?'+params.toString();
+}
+
 const slug=(value:unknown):value is string=>typeof value==='string'&&value.length<=80&&/^[a-z0-9]+(-[a-z0-9]+)*$/.test(value);
 export function normalizeChild(value:{nickname:string;age:string;region:string;preferences:string[];familyContext?:FamilyContext|null}&ChildDetails):ChildInput|null{
   const extra=details(value);if(!extra)return null;
@@ -33,12 +44,13 @@ export function parseChild(value:unknown):Child{
   const c=record(value),extra=details(c);if(!extra)throw new Error('Invalid child response');
   if(typeof c.id!=='string'||!/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(c.id)||!Number.isSafeInteger(c.version)||Number(c.version)<1||Number(c.version)>2147483647||!Number.isInteger(c.age)||!slug(c.region)||!(c.nickname===null||typeof c.nickname==='string')||!Array.isArray(c.preferences)||!c.preferences.every(slug)||!normalizeChild({nickname:String(c.nickname??''),age:String(c.age),region:c.region,preferences:c.preferences}))throw new Error('Invalid child response');
   if(c.familyContext!==undefined&&!validFamilyContext(c.familyContext,false))throw new Error('Invalid child response');
-  return {...extra,id:c.id,version:Number(c.version),nickname:c.nickname as string|null,age:Number(c.age),region:c.region,preferences:c.preferences,...(c.familyContext===undefined?{}:{familyContext:c.familyContext as FamilyContext|null})};
+  return {...extra,id:c.id,version:Number(c.version),nickname:c.nickname as string|null,age:Number(c.age),region:c.region,preferences:c.preferences.filter(isPublicCategory),...(c.familyContext===undefined?{}:{familyContext:c.familyContext as FamilyContext|null})};
 }
 export function parseChildOptions(value:unknown):ChildOptions{
   const result=record(value),parse=(value:unknown)=>{
     if(!Array.isArray(value)||value.length>1000)throw new Error('Invalid child options');
     return value.map(item=>{const row=record(item);if(!slug(row.slug)||typeof row.name!=='string'||!row.name.trim()||row.name.length>160)throw new Error('Invalid child options');return {slug:row.slug,name:row.name};});
   };
-  return {regions:parse(result.regions),categories:parse(result.categories)};
+  return {regions:parse(result.regions).filter(item=>!isDemoReference(item)),
+    categories:parse(result.categories).filter(item=>isPublicCategory(item.slug)&&!isDemoReference(item))};
 }

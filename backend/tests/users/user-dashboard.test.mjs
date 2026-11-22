@@ -20,7 +20,7 @@ test('profile/saved APIs enforce current-session ownership; only rolled-back syn
       await db.query('INSERT INTO balaqoldau.user_accounts(id,email,password_hash) VALUES($1,$2,$3)',[user.id,user.id+'@example.com',hash]);
       await db.query("INSERT INTO balaqoldau.user_sessions(token_hash,csrf_token,user_id,expires_at) VALUES($1,$2,$3,clock_timestamp()+interval '1 hour')",[userTokenHash(user.token),user.csrf,user.id]);
     }
-    const category=(await db.query('INSERT INTO balaqoldau.categories(slug,name) VALUES($1,$2) RETURNING id',['test-'+randomUUID(),'TEST rollback category'])).rows[0].id;
+    const category=(await db.query("SELECT id FROM balaqoldau.categories WHERE slug='clubs'")).rows[0].id;
     const ids=[];
     for(const [status,demo]of [['published',false],['draft',false],['draft',true],['published',false]]){
       const id=randomUUID();ids.push(id);

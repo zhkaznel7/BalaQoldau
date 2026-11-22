@@ -1,6 +1,6 @@
 import type {Request,Response} from 'express';
 import type {Database} from '../api/repository.ts';
-import {createRepository} from '../api/repository.ts';
+import {createRepository,publicProgramIds} from '../api/repository.ts';
 import {contactBody,reportBody,programParams,paginationQuery,validate} from '../api/schemas.ts';
 import {HttpError} from '../middleware/errors.ts';
 import {programTransaction} from '../admin/program-transaction.ts';
@@ -28,7 +28,7 @@ export async function handleUserInbox(req:Request,res:Response,db:Database,token
   if(!match)throw new HttpError(404,'NOT_FOUND','Not found.');
   const {id}=validate(programParams,{id:match[1]}),input=validate(reportBody,req.body);
   const inserted=await client.query(`INSERT INTO balaqoldau.program_reports(program_id,reason,explanation,user_id)
-   SELECT id,$2,$3,$4 FROM balaqoldau.published_programs WHERE id=$1 RETURNING id`,[id,input.reason,input.explanation??null,session.userId]);
+   SELECT id,$2,$3,$4 FROM (${publicProgramIds}) available WHERE id=$1 RETURNING id`,[id,input.reason,input.explanation??null,session.userId]);
   if(!inserted.rows.length)throw new HttpError(404,'NOT_FOUND','Program not found.');
   return {status:202,payload:{data:{accepted:true}}};
  });

@@ -51,7 +51,7 @@ let passed = 0;
 const check = name => { passed++; console.log(`PASS ${passed}: ${name}`); };
 const id1 = '11111111-1111-4111-8111-111111111111', id2 = '22222222-2222-4222-8222-222222222222';
 const privateId = '33333333-3333-4333-8333-333333333333';
-const program = (id, title) => ({ id, slug: 'test-' + id, category: 'test-support', title, description: 'TEST fixture only', sourceUrl: 'https://example.com/test', sourceName: 'TEST дереккөз', verifiedAt: '2026-11-11T00:00:00Z', ageMin: 0, ageMax: 17, deadline: null, applyUrl: 'https://example.com/test/apply', isDemo: false, regions: ['test-region'], familyCategories: [] });
+const program = (id, title) => ({ id, slug: 'test-' + id, category: 'clubs', title, description: 'TEST fixture only', sourceUrl: 'https://example.com/test', sourceName: 'TEST дереккөз', verifiedAt: '2026-11-11T00:00:00Z', ageMin: 0, ageMax: 17, deadline: null, applyUrl: 'https://example.com/test/apply', isDemo: false, regions: ['test-region'], familyCategories: [] });
 const programs = [program(id1, 'TEST Бірінші мүмкіндік'), program(id2, 'TEST Екінші мүмкіндік')];
 const page = (data, number = 1, total = data.length, limit = 20) => ({ data, pagination: { page: number, limit, total, totalPages: Math.ceil(total / limit) } });
 function send(method, params = {}, targetSession = session) {
@@ -73,7 +73,7 @@ async function intercept(message) {
   else if(url.pathname==='/api/auth/profile')body={data:{id:id1,email:'test@example.com',language:'kk',fullName:null,location:null,savedCount:0}};
   else if (url.pathname.endsWith('/categories')) {
     if (catalogFailure) { status = 503; body = {}; }
-    else body = page([{ id: '1', slug: 'test-support', name: 'TEST қолдау' }, ...(manyCategories ? Array.from({ length: 5 }, (_, i) => ({ id: String(i + 2), slug: 'test-extra-' + i, name: 'TEST отбасына қолдау туралы ұзақ санат атауы ' + (i + 2) })) : [])]);
+    else body = page([{ id: '1', slug: 'clubs', name: 'TEST қолдау' }, ...(manyCategories ? Array.from({ length: 5 }, (_, i) => ({ id: String(i + 2), slug: 'test-extra-' + i, name: 'TEST отбасына қолдау туралы ұзақ санат атауы ' + (i + 2) })) : [])]);
   } else if (url.pathname.endsWith('/regions')) body = page([{ id: '1', slug: 'test-region', name: 'TEST өңір' }]);
   else if (url.pathname.endsWith('/contact-messages')) {
     await delay(250);
@@ -230,11 +230,11 @@ try {
   await setValue('.hero-finder [name=q]', 'үйірме');
   await setValue('.hero-finder [name=age]', '0');
   await setValue('.hero-finder [name=region]', 'test-region');
-  await setValue('.hero-finder [name=category]', 'test-support');
+  await setValue('.hero-finder [name=category]', 'clubs');
   await evaluate('document.querySelector(".hero-finder").requestSubmit()');
   await until('location.pathname==="/results" && !!document.querySelector(".program-card")');
   assert.equal(await evaluate('new URLSearchParams(location.search).get("q")'), 'үйірме');
-  assert.deepEqual(await evaluate('Object.fromEntries(new URLSearchParams(location.search))'), { region: 'test-region', age: '0', category: 'test-support', q: 'үйірме' });
+  assert.deepEqual(await evaluate('Object.fromEntries(new URLSearchParams(location.search))'), { region: 'test-region', age: '0', category: 'clubs', q: 'үйірме' });
   check('public layout has no announcement/disclaimer blocks and keyword search preserves the API contract');
   await navigate('/');
   await evaluate('document.querySelector(".service-directions a").click()');
@@ -265,23 +265,23 @@ try {
     await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
     await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
   }
-  await navigate('/'); await until('!!document.querySelector(".hero-finder select[name=category] option[value=test-support]")');
-  await setValue('.hero-finder select[name=category]','test-support');
+  await navigate('/'); await until('!!document.querySelector(".hero-finder select[name=category] option[value=clubs]")');
+  await setValue('.hero-finder select[name=category]','clubs');
   await evaluate('document.querySelector(".hero-finder").requestSubmit()');
   await until('location.pathname==="/results" && document.querySelectorAll(".program-card").length===2');
-  assert.equal(await evaluate('new URLSearchParams(location.search).get("category")'), 'test-support');
-  assert.ok(requests.some(item => item.path.endsWith('/programs') && new URLSearchParams(item.search).get('category') === 'test-support'));
+  assert.equal(await evaluate('new URLSearchParams(location.search).get("category")'), 'clubs');
+  assert.ok(requests.some(item => item.path.endsWith('/programs') && new URLSearchParams(item.search).get('category') === 'clubs'));
   check('API category navigation opens filtered results');
 
   await navigate('/'); await until('document.querySelectorAll(".hero-finder select[name=region] option").length===2');
-  await setValue('.hero-finder [name=region]', 'test-region'); await setValue('.hero-finder [name=category]', 'test-support'); await setValue('.hero-finder [name=age]', '0');
+  await setValue('.hero-finder [name=region]', 'test-region'); await setValue('.hero-finder [name=category]', 'clubs'); await setValue('.hero-finder [name=age]', '0');
   await evaluate('document.querySelector(".hero-finder").requestSubmit()');
   await until('location.pathname==="/results" && !!document.querySelector(".program-card")');
   const filters = await evaluate('Object.fromEntries(new URLSearchParams(location.search))');
-  assert.deepEqual(filters, { region: 'test-region', age: '0', category: 'test-support' });
+  assert.deepEqual(filters, { region: 'test-region', age: '0', category: 'clubs' });
   check('API region/category names map to supported slug filters and age zero');
 
-  await navigate('/results?category=test-support&limit=1'); await until('!!document.querySelector(".pagination")');
+  await navigate('/results?category=clubs&limit=1'); await until('!!document.querySelector(".pagination")');
   const first = await evaluate('document.querySelector(".program-card h2").textContent');
   await evaluate('document.querySelector(".pagination button:last-child").click()');
   await until('new URLSearchParams(location.search).get("page")==="2" && document.querySelector(".pagination [aria-current=page]")?.textContent.startsWith("2") && !!document.querySelector(".program-card")');
@@ -427,12 +427,12 @@ try {
   await until('!!document.querySelector(".program-card")');
   assert.equal(await evaluate('document.activeElement.getAttribute("name")'), 'q');
   check('background results never steal focus from a user editing search');
-  await navigate('/results?category=test-support&region=test-region&limit=1&page=2');
+  await navigate('/results?category=clubs&region=test-region&limit=1&page=2');
   await until('!!document.querySelector(".program-card")');
   await evaluate('document.querySelector(".program-card h2 a").click()'); await until('!!document.querySelector(".details-heading")');
   await evaluate('document.querySelector(".back-link").click()');
   await until('location.pathname==="/results" && !!document.querySelector(".program-card")');
-  assert.deepEqual(await evaluate('Object.fromEntries(new URLSearchParams(location.search))'), { category: 'test-support', region: 'test-region', limit: '1', page: '2' });
+  assert.deepEqual(await evaluate('Object.fromEntries(new URLSearchParams(location.search))'), { category: 'clubs', region: 'test-region', limit: '1', page: '2' });
   check('program back navigation preserves category, region and pagination');
   await navigate('/login?lang=kk');await until('!!document.querySelector("#user-email")');
   assert.equal(await evaluate('!!document.querySelector(".account-language")'),false);

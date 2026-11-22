@@ -1,13 +1,14 @@
 import type {Database} from '../api/repository.ts';
 import {userTokenHash} from './repository.ts';
 import type {ChildInput} from './children-schemas.ts';
+import {publicCategorySql} from '../api/public-categories.ts';
 
 export interface Child extends ChildInput {id:string;version:number}
 const active=`SELECT u.id FROM balaqoldau.user_sessions s JOIN balaqoldau.user_accounts u ON u.id=s.user_id
   WHERE s.token_hash=$1 AND s.expires_at>clock_timestamp() AND NOT u.disabled AND s.credential_version=u.credential_version`;
 const childFields=`c.id,c.full_name AS "fullName",c.gender,c.interests,c.nickname,c.age,r.slug AS region,c.version,c.family_context AS "familyContext",
   ARRAY(SELECT k.slug FROM balaqoldau.child_preferences pref JOIN balaqoldau.categories k ON k.id=pref.category_id
-    WHERE pref.child_id=c.id ORDER BY k.slug) AS preferences`;
+    WHERE pref.child_id=c.id AND k.slug IN (${publicCategorySql}) AND k.name !~* '^DEMO' ORDER BY k.slug) AS preferences`;
 interface State {authorized:boolean;owned:boolean;valid:boolean;data:Child|null}
 export function childrenRepository(db:Database){
   return {
@@ -26,7 +27,8 @@ export function childrenRepository(db:Database){
       return (await db.query<{authorized:boolean;regions:{slug:string;name:string}[];categories:{slug:string;name:string}[]}>(`WITH active AS (${active})
         SELECT EXISTS(SELECT 1 FROM active) AS authorized,
         COALESCE((SELECT json_agg(items) FROM (SELECT slug,name FROM balaqoldau.regions WHERE EXISTS(SELECT 1 FROM active) AND slug !~* '^demo(-|$)' AND name !~* '^DEMO' ORDER BY name,slug LIMIT 1001)items),'[]') AS regions,
-        COALESCE((SELECT json_agg(items) FROM (SELECT slug,name FROM balaqoldau.categories WHERE EXISTS(SELECT 1 FROM active) ORDER BY name,slug LIMIT 1001)items),'[]') AS categories`,[userTokenHash(token)])).rows[0];
+        COALESCE((SELECT json_agg(items) FROM (SELECT slug,name FROM balaqoldau.categories WHERE EXISTS(SELECT 1 FROM active)
+          AND slug IN (${publicCategorySql}) AND name !~* '^DEMO' ORDER BY name,slug)items),'[]') AS categories`,[userTokenHash(token)])).rows[0];
     },
     async write(token:string,input:ChildInput,id?:string,version?:number){
       // A unique (user_id,slot), with slot 1..20, makes the quota safe even for concurrent inserts.
@@ -34,7 +36,8 @@ export function childrenRepository(db:Database){
       return (await db.query<State>(`WITH active AS MATERIALIZED (${active} FOR SHARE OF u),
         owned AS (SELECT c.id FROM balaqoldau.child_profiles c WHERE c.id=$6::uuid AND c.user_id IN(SELECT id FROM active)),
         region AS (SELECT id FROM balaqoldau.regions WHERE slug=$4 AND slug !~* '^demo(-|$)' AND name !~* '^DEMO'),
-        categories AS (SELECT id,slug FROM balaqoldau.categories WHERE slug=ANY($5::text[])),
+        public_categories AS (SELECT id,slug FROM balaqoldau.categories WHERE slug IN (${publicCategorySql}) AND name !~* '^DEMO'),
+        categories AS (SELECT id,slug FROM public_categories WHERE slug=ANY($5::text[])),
         valid AS (SELECT EXISTS(SELECT 1 FROM region) AND (SELECT count(*) FROM categories)=cardinality($5::text[]) AS ok),
         free AS (SELECT n FROM generate_series(1,20) n WHERE NOT EXISTS(SELECT 1 FROM balaqoldau.child_profiles c
           WHERE c.user_id IN(SELECT id FROM active) AND c.slot=n) ORDER BY n LIMIT 1),
@@ -46,7 +49,7 @@ export function childrenRepository(db:Database){
           RETURNING c.id,c.nickname,c.age,c.version,c.full_name AS "fullName",c.gender,c.interests,c.family_context AS "familyContext"),
         changed AS (SELECT * FROM created UNION ALL SELECT * FROM edited),
         removed AS (DELETE FROM balaqoldau.child_preferences WHERE child_id IN(SELECT id FROM changed)
-          AND category_id NOT IN(SELECT id FROM categories) RETURNING child_id),
+          AND category_id IN(SELECT id FROM public_categories) AND category_id NOT IN(SELECT id FROM categories) RETURNING child_id),
         added AS (INSERT INTO balaqoldau.child_preferences(child_id,category_id) SELECT c.id,k.id FROM changed c,categories k
           ON CONFLICT(child_id,category_id) DO NOTHING RETURNING child_id)
         SELECT EXISTS(SELECT 1 FROM active) AS authorized,EXISTS(SELECT 1 FROM owned) AS owned,(SELECT ok FROM valid) AS valid,

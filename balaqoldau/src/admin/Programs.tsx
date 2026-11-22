@@ -10,7 +10,7 @@ import { useResource } from '../hooks/useResource';
 import { useAdmin } from './context';
 import { AdminError } from './api';
 import type { Program, Access, Taxonomy, Action } from './types';
-import { statuses, actions, canEdit, permittedActions } from './types';
+import { statuses, actions, canEdit, draftSubmissionBlocker, permittedActions } from './types';
 import { initialForm, validateProgramForm, programPayload } from './form';
 import type { FormValues } from './form';
 import {AdditionalFilters,VerificationHistory} from './VerificationPanels';
@@ -72,6 +72,7 @@ function Detail({ initial }: { initial: Program }) {
     finally { if (alive.current) setPending(false); }
   }
   async function reload() { setPending(true); try { const result = await api.program(program.id); if (alive.current) { setProgram(result); setStale(false); setError(null); setConfirm(null); setNotice(tr("m077")); } } catch (failure) { if (alive.current) setError(failure instanceof Error ? failure : new AdminError(503)); } finally { if (alive.current) setPending(false); } }
+  const submissionBlocker = program.status === 'draft' ? draftSubmissionBlocker(access, program) : null;
   return <section><Link to="/admin/programs">{""+tr("m078")+""}</Link><div className="admin-page-heading"><h1 id="admin-detail-title" tabIndex={-1}>{program.title}</h1>{canEdit(access, program) && <Link to={'/admin/programs/' + program.id + '/edit'}>{""+tr("m069")+""}</Link>}</div>
     <p><strong>{tr(statuses[program.status])}</strong>{" "+tr("m079")+" "}{program.version} {program.isDemo && <strong className="admin-demo">{""+tr("m080")+""}</strong>}</p>
     {notice && <p role="status" className="admin-success">{tr(notice)}</p>}{error && <Failure error={error} retry={() => void reload()}/>}
@@ -81,6 +82,7 @@ function Detail({ initial }: { initial: Program }) {
     <p>{program.sourceUrl ? <a href={program.sourceUrl} target="_blank" rel="noopener noreferrer">{program.sourceName || tr("m089")}{" "+tr("m090")+""}</a> : tr("m091")}</p>
     <p>{""+tr("m092")+" "}{program.verifiedAt ? new Date(program.verifiedAt).toLocaleString(dateLocale()) : tr("m093")}{""+tr("m094")+""}</p>
     {program.applyUrl && <p><a href={program.applyUrl} target="_blank" rel="noopener noreferrer">{""+tr("m095")+""}</a></p>}
+    {submissionBlocker && <p className="admin-muted" id="admin-submit-blocker">{tr(submissionBlocker)}</p>}
     <div className="admin-actions">{permittedActions(access, program).map(action => <button key={action} disabled={pending || stale} onClick={event => { actionTrigger.current = event.currentTarget; setConfirm(action); setAck(false);setSourceAck(false);setInfoAck(false);setNotes(''); setError(null); }}>{tr(actions[action])}</button>)}<button disabled={pending} onClick={() => void reload()}>{""+tr("m096")+""}</button></div>
     {confirm && <section className="admin-confirm" aria-labelledby="admin-confirm-heading"><h2 id="admin-confirm-heading" tabIndex={-1}>{tr(actions[confirm])}</h2>
       <p>{confirm==='archive'?tr('m386'):confirm==='request-recheck'?tr('m412'):confirm === 'publish' ? tr("m097") : confirm === 'unpublish' ? tr("m098") : tr("m099")}</p>

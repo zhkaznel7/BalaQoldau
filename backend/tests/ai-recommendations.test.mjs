@@ -4,7 +4,7 @@ import {once} from 'node:events';
 import {createApp} from '../dist/app.js';
 import {parseEnvironment} from '../dist/config/env.js';
 
-const intent = {age: 7, region: 'almaty-city', need: 'sports-activities', category: null};
+const intent = {age: 7, region: 'almaty-city', need: 'sports-activities', category: 'clubs'};
 const emptyIntent = {age: null, region: null, need: null, category: null};
 const input = {query: 'Алматыда 7 жастағы балаға спорт керек', consent: true};
 
@@ -57,6 +57,7 @@ test('public assistant is bounded and sends only canonical filters to the catalo
     assert.equal(params[3], 7);
     assert.equal(params[4], 'almaty-city');
     assert.equal(params[5], 'sports-activities');
+    assert.equal(params[0], 'clubs');
     assert.doesNotMatch(JSON.stringify(params), /Jane|example\.org|123456789012/);
     return {rows: [{total: 0, data: []}]};
   }};
@@ -74,4 +75,29 @@ test('public assistant is bounded and sends only canonical filters to the catalo
   assert.equal((await post(url, {...input, query: 'x'.repeat(401)})).status, 400);
   assert.equal((await post(url, input)).status, 429);
   assert.equal(calls, 1);
+});
+
+test('a conversation asks one question at a time and only sends complete filters to the catalog', async t => {
+  let calls = 0;
+  const url = await endpoint(t, {async query(_sql, params) {
+    calls++;
+    assert.deepEqual([params[0],params[3],params[4],params[5]],['clubs',7,'almaty-city','sports-activities']);
+    return {rows:[{total:0,data:[]}]};
+  }});
+  const ask = async (query, context) => {
+    const response = await post(url, {query, context, consent:true});
+    assert.equal(response.status,200);
+    return response.json();
+  };
+  const category = await ask('Спортивная секция',null);
+  assert.equal(category.followUp,'region');
+  const region = await ask('Алматы',category.intent);
+  assert.equal(region.followUp,'age');
+  const age = await ask('7',region.intent);
+  assert.deepEqual(age,{intent,data:[],followUp:null});
+  const conflict = await ask('Алматы или Астана',region.intent);
+  assert.equal(conflict.followUp,'clarify');
+  assert.deepEqual(conflict.intent,region.intent);
+  assert.equal((await post(url,{query:'7',context:{...region.intent,need:'disability'},consent:true})).status,400);
+  assert.equal(calls,1);
 });

@@ -22,37 +22,59 @@ questions search the benefits category for age zero. The catalog taxonomy does
 not classify birth-benefit subtypes or club fees. The chat points users to the
 official source for club costs.
 
-Each question is independent. Age, region and existing eligibility-related filters
-come from rules. The model selects a category from an allowlist, or a general
-intent that can use existing structured criteria. The top score must be at least
-0.45 and its lead over the next class at least 0.12. Conflicts, exclusions,
-unsupported age ranges, low scores, and model disagreement with an explicit
-category cue trigger clarification. If weights are unavailable or inference
-fails, the assistant uses the rules parser. The manual filters remain available.
+The browser keeps the current search criteria in memory for follow-up replies.
+The assistant asks for one missing field at a time and accepts a whole number
+when the parent gives the age. Starting a new search clears the context.
+Explicit category cues take precedence over model scores. Explicit sports or
+creative requests search clubs, with activity tags required for those requests.
+For indirect queries the model score must reach 0.45 with a lead of at least
+0.12 over the next class. Conflicts, exclusions and unsupported or uncertain
+answers prompt clarification. Rules remain available if inference fails.
 
 ## Public contract
 
 `POST /api/ai/recommendations` accepts JSON `{"query":"...","consent":true}`
 with a nonblank question up to 400 characters and no query-string parameters.
-The response contains `{intent, data}`. The nullable fields of `intent` are
-`age`, `region`, `need`, and `category`. An all-null intent asks for
-clarification. A recognized intent with empty data means there are no matching
-catalog results. A missing database connection returns `503 AI_UNAVAILABLE`.
-The `X-Recommendation-Mode` response header reports `model`, `clarification`, or
-`rules-fallback` for demo and operational verification without exposing the question.
+Send `context: null` to start a conversation or send the previous normalized
+`intent` object to continue. The nullable fields are `age`, `region`, `need`,
+and `category`. Conversation responses add `followUp`, which is `category`,
+`region`, `age`, `clarify`, or `null` for a completed search. An empty completed
+search offers a link to browse that category. A missing database connection
+returns `503 AI_UNAVAILABLE` when the request is ready to search.
+The `X-Recommendation-Mode` header reports `explicit`, `model`, `clarification`, or
+`rules-fallback`.
+
+`GET /api/ai/suggestions` returns up to one age and region pair per category
+from currently published, source-verified records inside the same freshness
+window. The browser formats the prompt in the selected language. If the
+catalog yields no suggestions, generic category questions are offered.
 
 The existing public view excludes unpublished records, DEMO data, expired
 programs, and sources flagged for recheck. The assistant additionally requires
 source metadata and verification inside the existing `PROGRAM_REVIEW_DAYS`
-window. The existing matcher ranks up to five eligible or possible programs.
+window. Requested category and known age, region and club activity constraints
+filter candidates before ranking up to five results.
 `MATCH` means the submitted criteria satisfy the recorded requirements.
 `POSSIBLE` indicates missing details or incomplete eligibility rules. The
-program detail and official source links resolve from the catalog.
+program detail and official source links resolve from the catalog. Benefits
+remain possible matches pending confirmation of the full official requirements.
 
 The endpoint is anonymous and limited to six POSTs per IP per minute per
 process. It accepts opt-in, sets `Cache-Control: no-store`, and passes only
 recognized filters to PostgreSQL. The application does not persist questions or
 read user profiles. Proxy and APM logging should omit request bodies.
+
+## Catalog translations
+
+Russian titles and descriptions are editorial presentation records in
+`backend/src/api/program-translations.ts`. A translation is served only when the
+published program's slug and the SHA-256 of `JSON.stringify([title, description])`
+match its record. The API preserves original fields, official names and links.
+The frontend shows the original with a translation notice when a Russian record
+is missing or out of date. Updating presentation text requires bilingual source
+review. Changes to original program facts or eligibility use the existing admin
+workflow. The translation registry has no write access to PostgreSQL and needs
+no database migration.
 
 ## Verification
 

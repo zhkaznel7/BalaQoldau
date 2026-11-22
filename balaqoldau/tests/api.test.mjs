@@ -5,7 +5,7 @@ import { resultsUrl, updateFilters } from '../src/api/navigation.ts';
 import { validateContact } from '../src/api/contact.ts';
 
 const id = '11111111-1111-4111-8111-111111111111';
-const program = { id, slug: 'test-program', category: 'test-category', title: 'TEST бағдарлама', description: 'TEST', sourceUrl: 'https://example.com/source', sourceName: 'TEST', verifiedAt: '2026-11-11T00:00:00Z', ageMin: 0, ageMax: 17, deadline: null, applyUrl: null, isDemo: false, regions: ['test-region'], familyCategories: [] };
+const program = { id, slug: 'test-program', category: 'clubs', title: 'TEST бағдарлама', description: 'TEST', sourceUrl: 'https://example.com/source', sourceName: 'TEST', verifiedAt: '2026-11-11T00:00:00Z', ageMin: 0, ageMax: 17, deadline: null, applyUrl: null, isDemo: false, regions: ['test-region'], familyCategories: [] };
 const page = (data, number = 1, total = data.length, limit = 20) => ({ data, pagination: { page: number, limit, total, totalPages: Math.ceil(total / limit) } });
 
 test('contact email preserves valid plus addresses and rejects malformed local/domain parts', () => {
@@ -21,17 +21,17 @@ test('contact email preserves valid plus addresses and rejects malformed local/d
 test('search URL uses supported API filters only, including zero age and pagination', async () => {
   let requested;
   const api = createApi('/api', async (url, init) => { requested = [url, init]; return Response.json(page([program])); });
-  const result = await api.programs('category=test-category&region=test-region&age=0&q=іздеу&page=2&limit=10');
+  const result = await api.programs('category=clubs&region=test-region&age=0&q=іздеу&page=2&limit=10');
   const url = new URL(requested[0], 'http://localhost');
   assert.equal(url.pathname, '/api/programs');
-  assert.equal(url.searchParams.get('category'), 'test-category');
+  assert.equal(url.searchParams.get('category'), 'clubs');
   assert.equal(url.searchParams.get('age'), '0');
   assert.equal(url.searchParams.get('page'), '2');
   assert.equal(requested[1].credentials, 'omit');
   assert.equal(result.data[0].id, id);
 });
 test('navigation preserves filters, resets page and category links open results directly', () => {
-  assert.equal(resultsUrl({ category: 'test-category' }), '/results?category=test-category');
+  assert.equal(resultsUrl({ category: 'clubs' }), '/results?category=clubs');
   const next = updateFilters(new URLSearchParams('region=test-region&page=3'), { q: 'жаңа' });
   assert.equal(next.get('region'), 'test-region');
   assert.equal(next.get('page'), null);

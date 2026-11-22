@@ -23,14 +23,14 @@ const regions = {
 
 const needs = {
   'education-support': /^(?:оқу|оқуға|білім|репетитор[а-я]*|урок[а-я]*|уч[её]б[а-я]*|обучени[а-я]*)$/u,
-  'creative-development': /^(?:шығармашылық|сурет|рисовани[а-я]*|рисовань[а-я]*|творчеств[а-я]*|музык[а-я]*|ән)$/u,
-  'sports-activities': /^(?:спорт[а-я]*|футбол[а-я]*|жүзу|плавани[а-я]*|секци[а-я]*)$/u,
+  'creative-development': /^(?:шығармашылық|сурет[а-яәіңғүұқөһ]*|рисовани[а-я]*|рисовань[а-я]*|творческ[а-я]*|творчеств[а-я]*|музык[а-я]*|ән)$/u,
+  'sports-activities': /^(?:спорт[а-яәіңғүұқөһ]*|футбол[а-я]*|жүзу|плавани[а-я]*)$/u,
 } as const;
 const categories = {
   benefits: /^(?:жәрдемақы[а-яәіңғүұқөһ]*|пособи[а-я]*)$/u,
   'free-courses': /^курс(?:ы|ов|ах|ами|қа|тар(?:ы|ын|ға|ды|да)?)?$/u,
   grants: /^(?:грант[а-яәіңғүұқөһ]*)$/u,
-  clubs: /^(?:үйірме[а-яәіңғүұқөһ]*|круж(?:ок|к[а-я]+))$/u,
+  clubs: /^(?:үйірме[а-яәіңғүұқөһ]*|круж(?:ок|к[а-я]+)|секци[а-яәіңғүұқөһ]*|внешкольн[а-я]+)$/u,
 } as const;
 
 export type Intent = {
@@ -41,8 +41,9 @@ export type Intent = {
 };
 
 export const clarification: Intent = {age: null, region: null, need: null, category: null};
+export const intentRegions = Object.keys(regions) as [NonNullable<Intent['region']>, ...NonNullable<Intent['region']>[]];
 const regionAliases = new Map<string, keyof typeof regions>(
-  (Object.keys(regions) as (keyof typeof regions)[]).flatMap(region =>
+  intentRegions.flatMap(region =>
     regions[region].map(alias => [alias, region] as const)),
 );
 const yearUnits = new Set(['жас', 'жаста', 'жастағы', 'жасында', 'жасқа', 'жастан', 'лет', 'год', 'года']);
@@ -94,6 +95,14 @@ export function parseIntentRules(query: string): Intent | null {
     if (need) support.add(need);
     if (category) types.add(category);
     if (phrase) index++;
+  }
+
+  // A creative project's funding request is a grant search, not an activity search.
+  if (!types.size &&
+      words.some(word => /^(?:конкурс[а-яәіңғүұқөһ]*|байқау[а-яәіңғүұқөһ]*)$/u.test(word)) &&
+      words.some(word => /^(?:қаржы[а-яәіңғүұқөһ]*|қаражат[а-яәіңғүұқөһ]*|финансирован[а-я]*)$/u.test(word))) {
+    if (words.some(word => exclusions.has(word)) || hasUnresolvedCategoryConstraint(query)) return null;
+    types.add('grants');
   }
 
   const birth = /(?:^| )(?:бала туған(?:да|нан)|бала дүниеге келгенде|при рождени[иия] (?:ребенка|ребёнка)|на рождени[еи] (?:ребенка|ребёнка))(?: |$)/u;

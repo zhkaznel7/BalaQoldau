@@ -25,9 +25,17 @@ export const actions: Record<Action, string> = { submit: tr("m140"), approve: tr
 export function canEdit(access: Access, program: Program) {
   return access.permissions.includes('programs:draft:write') && program.status === 'draft' && (access.role === 'admin' || program.createdBy === access.id);
 }
+export function draftSubmissionBlocker(access: Access, program: Program) {
+  if (!canEdit(access, program)) return 'adminSubmitPermission';
+  if (program.isDemo) return 'adminSubmitDemo';
+  if (!program.sourceUrl && !program.sourceName) return 'adminSubmitMissingSource';
+  if (!program.sourceUrl) return 'adminSubmitMissingSourceUrl';
+  if (!program.sourceName) return 'adminSubmitMissingSourceName';
+  return null;
+}
 export function permittedActions(access: Access, program: Program): Action[] {
   const result: Action[] = [];
-  if (canEdit(access, program) && !program.isDemo && program.sourceUrl && program.sourceName) result.push('submit');
+  if (draftSubmissionBlocker(access, program) === null) result.push('submit');
   if (access.permissions.includes('programs:review')) {
     const own = program.createdBy === access.id || program.submittedBy === access.id;
     if (program.status === 'review' && (!own||access.role==='admin')) result.push('approve');

@@ -5,7 +5,7 @@ import {createApi,parseProgram} from '../src/api/client.ts';
 import {updateFilters,resultsUrl} from '../src/api/navigation.ts';
 import {tr} from '../src/i18n/ui.ts';
 const id='11111111-1111-4111-8111-111111111111';
-const program={id,slug:'test',category:'test',title:'SOURCE original',description:'SOURCE original requirements',sourceName:'SOURCE',sourceUrl:'https://example.com/test',verifiedAt:'2026-11-13T00:00:00Z',ageMin:0,ageMax:17,deadline:null,applyUrl:null,isDemo:false,regions:['test-region'],familyCategories:[]};
+const program={id,slug:'test',category:'clubs',title:'SOURCE original',description:'SOURCE original requirements',sourceName:'SOURCE',sourceUrl:'https://example.com/test',verifiedAt:'2026-11-13T00:00:00Z',ageMin:0,ageMax:17,deadline:null,applyUrl:null,isDemo:false,regions:['test-region'],familyCategories:[]};
 test('matching transport remains anonymous, bounded by API validation and never sends locale/profile data',async()=>{
   const requests=[],client=createApi('/api',async(url,options)=>{requests.push({url,options});return new Response(JSON.stringify(url.includes('/'+id)?{data:program}:{data:[program],pagination:{page:1,limit:20,total:1,totalPages:1}}));});
   await client.matches('matching=1&age=0&region=test-region&need=test-need&category=test&q=TEST&lang=ru&userId=secret&page=1');

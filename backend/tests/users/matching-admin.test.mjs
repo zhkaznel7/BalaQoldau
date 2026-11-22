@@ -11,7 +11,6 @@ test('eligibility completeness obeys existing RBAC, CSRF, revision and review wo
   const {pool,config}=await openUserDatabase(),db=await pool.connect();let server;
   try{
     await db.query('BEGIN');const suffix='test-match-admin-'+randomUUID(),origin='https://admin.example.com';
-    await db.query('INSERT INTO balaqoldau.categories(slug,name) VALUES($1,$2)',[suffix,'TEST category']);
     await db.query('INSERT INTO balaqoldau.regions(slug,name) VALUES($1,$2)',[suffix,'TEST region']);
     const users={},hash=await hashPassword('TEST fixture password only!');
     for(const role of ['editor','reviewer','admin']){
@@ -22,7 +21,7 @@ test('eligibility completeness obeys existing RBAC, CSRF, revision and review wo
     server=createApp(parseEnvironment({...config,NODE_ENV:'test',ADMIN_ENABLED:'true',ADMIN_ORIGIN:origin,CORS_ALLOWED_ORIGINS:origin}),db).listen(0,'127.0.0.1');await once(server,'listening');
     const base='http://127.0.0.1:'+server.address().port;
     const call=(path,role,method,body,csrf=true)=>fetch(base+'/api/admin/programs'+path,{method,headers:{Origin:origin,'Content-Type':'application/json',...(role?{Cookie:'balaqoldau_admin='+users[role].token,...(csrf?{'X-CSRF-Token':users[role].csrf}:{})}:{})},body:JSON.stringify(body)});
-    const input={slug:suffix,category:suffix,title:'TEST rollback fixture',description:'TEST not official',regions:[suffix],sourceUrl:'https://example.com/test',sourceName:'TEST',ageMin:5,ageMax:10};
+    const input={slug:suffix,category:'clubs',title:'TEST rollback fixture',description:'TEST not official',regions:[suffix],sourceUrl:'https://example.com/test',sourceName:'TEST',ageMin:5,ageMax:10};
     assert.equal((await call('',null,'POST',input)).status,401);
     assert.equal((await call('','editor','POST',input,false)).status,403);
     let response=await call('','editor','POST',input);assert.equal(response.status,201);let p=(await response.json()).data;assert.equal(p.eligibilityComplete,false);

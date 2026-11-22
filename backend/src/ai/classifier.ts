@@ -40,24 +40,26 @@ export function classifyCategory(query: string): z.infer<typeof predictionSchema
   return {...first!, margin: first!.confidence - second!.confidence};
 }
 
-type Mode = 'model' | 'clarification' | 'rules-fallback';
+type Mode = 'model' | 'explicit' | 'clarification' | 'rules-fallback';
 
 export function resolveRecommendationIntent(query: string, infer: (query: string) => unknown = classifyCategory): {intent: Intent; mode: Mode} {
   const rules = parseIntentRules(query);
   const clarify = {intent: clarification, mode: 'clarification'} as const;
   if (!rules || (!rules.category && hasUnresolvedCategoryConstraint(query))) return clarify;
+  const categoryFromRules = rules.category ??
+    (rules.need === 'sports-activities' || rules.need === 'creative-development' ? 'clubs' : null);
 
   let prediction: z.infer<typeof predictionSchema> | null;
   try {
     const result = infer(query);
     prediction = result === null ? null : predictionSchema.parse(result);
   } catch {
-    return {intent: rules, mode: 'rules-fallback'};
+    return {intent: {...rules, category: categoryFromRules}, mode: 'rules-fallback'};
   }
 
+  if (categoryFromRules) return {intent: {...rules, category: categoryFromRules}, mode: 'explicit'};
   if (!prediction || prediction.confidence < minimumConfidence || prediction.margin < minimumMargin) return clarify;
   const category = prediction.label === 'general' ? null : prediction.label;
-  if (rules.category && rules.category !== category) return clarify;
   const intent = {...rules, category};
   if (Object.values(intent).every(value => value === null)) return clarify;
   return {intent, mode: 'model'};

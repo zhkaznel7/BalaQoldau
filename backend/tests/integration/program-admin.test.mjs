@@ -16,8 +16,7 @@ test('admin program CRUD/workflow against isolated PostgreSQL; all fixture chang
     assert.equal((await pool.query('SELECT current_database() AS name')).rows[0].name, process.env.GITHUB_ACTIONS==='true'?'balaqoldau_test':'balaqoldau_dev');
     await runMigrations(pool);
     db = await pool.connect(); await db.query('BEGIN');
-    const suffix = randomUUID(), category = 'test-cat-' + suffix, region = 'test-region-' + suffix, family = 'test-family-' + suffix;
-    await db.query('INSERT INTO balaqoldau.categories(slug,name) VALUES($1,$2)', [category, 'TEST category']);
+    const suffix = randomUUID(), category = 'clubs', region = 'test-region-' + suffix, family = 'test-family-' + suffix;
     await db.query('INSERT INTO balaqoldau.regions(slug,name) VALUES($1,$2)', [region, 'TEST region']);
     await db.query('INSERT INTO balaqoldau.family_categories(slug,name) VALUES($1,$2)', [family, 'TEST family']);
     const hash = await hashPassword('Synthetic program fixture password!');

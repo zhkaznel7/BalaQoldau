@@ -6,7 +6,7 @@ test('enhanced child information remains parent-only; interests rank without inv
   for(let n=0;n<2;n++){const u={id:randomUUID(),token:userToken(),csrf:userToken()};users.push(u);await db.query('INSERT INTO balaqoldau.user_accounts(id,email,password_hash) VALUES($1,$2,$3)',[u.id,u.id+'@example.com',hash]);await db.query("INSERT INTO balaqoldau.user_sessions(token_hash,csrf_token,user_id,expires_at,credential_version) VALUES($1,$2,$3,now()+interval '1 hour',1)",[userTokenHash(u.token),u.csrf,u.id]);}
   server=createApp(parseEnvironment({...config,USER_AUTH_ENABLED:'true',USER_ORIGIN:origin,CORS_ALLOWED_ORIGINS:origin}),db).listen(0,'127.0.0.1');await once(server,'listening');const base='http://127.0.0.1:'+server.address().port+'/api';
   const call=(path,method='GET',body,u=users[0],csrf=true)=>fetch(base+path,{method,headers:{Origin:origin,...(u?{Cookie:'balaqoldau_user='+u.token,...(csrf?{'X-CSRF-Token':u.csrf}:{})}:{}),...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})});
-  const category=(await db.query("INSERT INTO balaqoldau.categories(slug,name) VALUES($1,'TEST interest') RETURNING id",['test-interest-'+randomUUID()])).rows[0].id;
+  const category=(await db.query("SELECT id FROM balaqoldau.categories WHERE slug='clubs'")).rows[0].id;
   const slug=(await db.query('SELECT slug FROM balaqoldau.categories WHERE id=$1',[category])).rows[0].slug;
   const input={nickname:'TEST',age:8,region:'astana',preferences:[slug],fullName:'  TEST  Child ',gender:'female',interests:['sports'],familyContext:{supportNeeds:[]}};let child;
   await t.test('create, retrieve and edit preserve old fields; old clients cannot erase new private fields',async()=>{

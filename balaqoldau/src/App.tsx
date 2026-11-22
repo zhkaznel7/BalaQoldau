@@ -21,12 +21,12 @@ import { ProgramGrid } from './components/ProgramCard';
 import { SaveProgramButton, SavedProgramsScope } from './account/SavedProgramsScope';
 import LanguageSwitcher, { LanguageNavigation } from './components/LanguageSwitcher';
 import { carryLanguage, withoutLanguage } from './components/language';
-import ContentLanguageNotice from './i18n/ContentLanguageNotice';
+import {programContent} from './i18n/program-content';
 import ReportProgram from './components/ReportProgram';
 import MatchingSummary from './components/MatchingSummary';
 import RecommendationAssistant from './components/RecommendationAssistant';
 import {matchingContext} from './api/matching';
-import {catalogCategories,categoryName} from './api/categories';
+import {catalogCategories,categoryName,isPublicCategory} from './api/categories';
 import {referenceName} from './api/reference-data';
 import './refinements.css';
 // PLACEHOLDERS: no verified public project contact details yet. Never invent numbers/addresses.
@@ -177,7 +177,8 @@ function Find() {
     const [params] = useSearchParams();
     const navigate = useNavigate();
     const catalog = useCatalog();
-    const [filters, setFilters] = useState({ region: params.get('region') || '', age: params.get('age') || '', category: params.get('category') || '', q: params.get('q') || '',need:params.get('need')||'',matching:'1' });
+    const category=params.get('category');
+    const [filters, setFilters] = useState({ region: params.get('region') || '', age: params.get('age') || '', category: isPublicCategory(category) ? category : '', q: params.get('q') || '',need:params.get('need')||'',matching:'1' });
     function submit(event: FormEvent) { event.preventDefault(); navigate(resultsUrl(filters)); }
     const disabled = catalog.loading || Boolean(catalog.error);
     return <div className="container inner-page">
@@ -192,7 +193,7 @@ function Find() {
         <p className="form-privacy">{""+tr("m189")+""}</p>
       </form><aside className="search-aside"><Info aria-hidden="true" size={28}/><h2>{""+tr("m190")+""}</h2>
         <p>{""+tr("m191")+""}</p><div><Check aria-hidden="true" size={19}/>{" "+tr("m192")+""}</div>
-        <div><Check aria-hidden="true" size={19}/>{" "+tr("m193")+""}</div><CatalogStatus/><ContentLanguageNotice/>
+        <div><Check aria-hidden="true" size={19}/>{" "+tr("m193")+""}</div><CatalogStatus/>
       </aside></div>
     </div>;
 }
@@ -250,21 +251,23 @@ function ProgramDetails({ id }: { id: string }) {
     const routeState: unknown = location.state;
     const from = routeState && typeof routeState === 'object' && 'from' in routeState ? routeState.from : null;
     const back = typeof from === 'string' && /^\/(results|favorites|profile\/saved)(\?|$)/.test(from) ? from : '/results';
-    useEffect(() => { if (state.data) document.title = `${state.data.title} — BalaQoldau`; }, [state.data]);
+    const localizedTitle=state.data?programContent(state.data).title:null;
+    useEffect(() => { if (localizedTitle) document.title = localizedTitle + ' — BalaQoldau'; }, [localizedTitle]);
     if (state.loading) return <div className="container inner-page"><PageIntro label={tr("m206")} title={tr("m207")} text={tr("m208")}/><Loading/></div>;
     if (state.error) return <div className="container inner-page"><PageIntro label={tr("m206")} title={tr("m207")} text={tr("m209")}/>{state.error instanceof ApiError && state.error.status === 404 ? <Empty title={tr("m210")} text={tr("m211")}/> : <RequestError error={state.error} retry={state.retry}/>}</div>;
     const p = state.data;
     if (!p) return null;
+    const content=programContent(p);
     const category = categoryName(p.category,catalog.categories.find(item => item.slug === p.category)?.name || p.category);
-    const regionNames = p.regions.map(slug => catalog.regions.find(region => region.slug === slug)?.name || slug);
+    const regionNames = p.regions.map(slug => referenceName('regions',slug,catalog.regions.find(region => region.slug === slug)?.name || slug));
     return <div className="container inner-page">
       <Link className="inline-link back-link" to={back}><ArrowLeft aria-hidden="true" size={17}/> {back.startsWith('/favorites') ? tr("m212") : tr("m213")}</Link>
-      <div className="details-heading"><div><span className="program-category">{category}</span><h1>{p.title}</h1>
+      <div className="details-heading"><div><span className="program-category">{category}</span><h1 lang={content.fallback?'kk':undefined}>{content.title}</h1>
         <div className="program-meta"><span><MapPin aria-hidden="true" size={17}/>{regionNames.join(', ') || tr("m214")}</span><span><Users aria-hidden="true" size={17}/>{p.ageMin}–{p.ageMax}{" "+tr("m215")+""}</span></div>
-      </div><SavedProgramsScope ids={[p.id]}><SaveProgramButton id={p.id} title={p.title}/></SavedProgramsScope></div>
-      <ContentLanguageNotice/>{p.matching&&<MatchingSummary matching={p.matching} expanded/>}<div className="details-layout"><div className="details-content">
-        <section><h2>{""+tr("m216")+""}</h2><p>{p.description}</p></section>
-        <section><h2>{""+tr("m217")+""}</h2><p>{""+tr("m218")+" "}{p.ageMin}–{p.ageMax}{" "+tr("m219")+""}</p>{p.familyCategories.length > 0 && <p>{""+tr("m220")+" "}{p.familyCategories.join(', ')}.</p>}<p>{""+tr("m221")+""}</p></section>
+      </div><SavedProgramsScope ids={[p.id]}><SaveProgramButton id={p.id} title={content.title}/></SavedProgramsScope></div>
+      {content.fallback&&<p className="field-hint">{tr('programOriginalLanguage')}</p>}{p.matching&&<MatchingSummary matching={p.matching} expanded/>}<div className="details-layout"><div className="details-content">
+        <section><h2>{""+tr("m216")+""}</h2><p lang={content.fallback?'kk':undefined} style={{whiteSpace:'pre-line'}}>{content.description}</p></section>
+        <section><h2>{""+tr("m217")+""}</h2><p>{""+tr("m218")+" "}{p.ageMin}–{p.ageMax}{" "+tr("m219")+""}</p>{p.familyCategories.length > 0 && <p>{""+tr("m220")+" "}{p.familyCategories.map(need=>referenceName('familyCategories',need,need)).join(', ')}.</p>}<p>{""+tr("m221")+""}</p></section>
         <section><h2>{""+tr("m222")+""}</h2><a href={p.sourceUrl} target="_blank" rel="noopener noreferrer" aria-describedby="external-link-note">{p.sourceName} <ExternalLink aria-hidden="true" size={16}/></a><p>{""+tr("m223")+" "}{new Date(p.verifiedAt).toLocaleDateString(dateLocale())}</p>{p.deadline && <p>{""+tr("m224")+" "}{p.deadline}</p>}</section>
       </div><aside className="application-aside"><FileText aria-hidden="true" size={30}/><h2>{""+tr("m225")+""}</h2><p>{""+tr("m226")+""}</p>
         {p.applyUrl ? <a className="button primary" href={p.applyUrl} target="_blank" rel="noopener noreferrer" aria-describedby="external-link-note">{""+tr("m227")+" "}<ExternalLink aria-hidden="true" size={18}/></a> : <div className="unavailable">{""+tr("m228")+""}</div>}

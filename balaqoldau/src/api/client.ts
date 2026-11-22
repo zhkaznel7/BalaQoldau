@@ -1,8 +1,11 @@
 import {tr} from '../i18n/ui.ts';
+import {isPublicCategory} from './categories.ts';
+import {isDemoReference} from './reference-data.ts';
 import {matchCodes,matchingContext} from './matching.ts';
 import type {Matching} from './matching.ts';
 export interface Taxonomy { id: string; slug: string; name: string }
 export interface Program {
+  translationRu?: {title:string;description:string};
   matching?:Matching;
   id: string; slug: string; category: string; title: string; description: string;
   sourceUrl: string; sourceName: string; verifiedAt: string; ageMin: number; ageMax: number;
@@ -18,9 +21,12 @@ export interface ContactInput {
 }
 export interface ReportInput {reason:'incorrect'|'outdated'|'source_broken'|'other';explanation:string|null}
 export interface Recommendations {
-  intent: {age: number|null; region: string|null; need: string|null; category: string|null};
+  intent: RecommendationIntent;
+  followUp?: 'category'|'region'|'age'|'clarify'|null;
   data: (Program & {matching: Matching})[];
 }
+export type RecommendationIntent = {age: number|null; region: string|null; need: string|null; category: string|null};
+export type RecommendationSuggestion = {age:number;region:string;category:string};
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string | undefined;
@@ -59,14 +65,19 @@ export function parseProgram(value: unknown): Program {
     if(expected!==m.status||new Set(checks.map(c=>c.code)).size!==checks.length)return invalid();
     matching={status:m.status as Matching['status'],checks};
   }
-  if (p.isDemo !== false || (p.status !== undefined && p.status !== 'published')) return invalid();
+  if (p.isDemo !== false || !isPublicCategory(p.category) ||
+      isDemoReference({slug:text(p.slug),name:text(p.title)}) ||
+      (p.status !== undefined && p.status !== 'published')) return invalid();
   const id = text(p.id);
   const ageMin = integer(p.ageMin), ageMax = integer(p.ageMax);
   if (!isProgramId(id) || ageMin > ageMax || ageMax > 17 || !Number.isFinite(Date.parse(text(p.verifiedAt)))) return invalid();
+  const translation=p.translationRu===undefined?undefined:record(p.translationRu);
   return { id, slug: text(p.slug), category: text(p.category), title: text(p.title), description: text(p.description),
+    ...(translation?{translationRu:{title:text(translation.title),description:text(translation.description)}}:{}),
     sourceUrl: https(p.sourceUrl), sourceName: text(p.sourceName), verifiedAt: text(p.verifiedAt), ageMin, ageMax,
     deadline: p.deadline === null ? null : text(p.deadline), applyUrl: p.applyUrl === null ? null : https(p.applyUrl),
-    isDemo: false, regions: strings(p.regions), familyCategories: strings(p.familyCategories),...(matching?{matching}:{}) };
+    isDemo: false, regions: strings(p.regions).filter(slug=>!isDemoReference({slug,name:''})),
+    familyCategories: strings(p.familyCategories).filter(slug=>!isDemoReference({slug,name:''})),...(matching?{matching}:{}) };
 }
 function parseTaxonomy(value: unknown): Taxonomy {
   const item = record(value);
@@ -78,11 +89,24 @@ function parseRecommendations(value: unknown): Recommendations {
   const slug = (value: unknown) => value === null ? null :
     (typeof value === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value) && value.length <= 80 ? value : invalid());
   if ((age !== null && age > 17) || !Array.isArray(result.data) || result.data.length > 5) return invalid();
-  return {intent: {age, region: slug(intent.region), need: slug(intent.need), category: slug(intent.category ?? null)}, data: result.data.map(value => {
+  const followUp=result.followUp,category=intent.category??null;
+  if(category!==null&&!isPublicCategory(category))return invalid();
+  if (followUp!==undefined&&followUp!==null&&followUp!=='category'&&followUp!=='region'&&followUp!=='age'&&followUp!=='clarify') return invalid();
+  return {intent: {age, region: slug(intent.region), need: slug(intent.need), category},
+    ...(followUp===undefined?{}:{followUp}),data: result.data.map(value => {
     const program = parseProgram(value);
     if (!program.matching || program.matching.status === 'NOT_MATCH') return invalid();
     return {...program, matching: program.matching};
   })};
+}
+function parseSuggestions(value: unknown): RecommendationSuggestion[] {
+  const {data}=record(value);
+  if (!Array.isArray(data)||data.length>4) return invalid();
+  return data.map(value=>{
+    const row=record(value),age=integer(row.age),region=text(row.region),category=text(row.category);
+    if(age>17||!/^[a-z]+(?:-[a-z]+)*$/.test(region)||isDemoReference({slug:region,name:''})||!isPublicCategory(category))return invalid();
+    return {age,region,category};
+  });
 }
 function parsePage<T>(value: unknown, parse: (item: unknown) => T): Page<T> {
   const result = record(value), pagination = record(result.pagination);
@@ -102,7 +126,7 @@ function apiBase(value: string): string {
 }
 export function createApi(baseUrl = '/api', fetcher: typeof fetch = globalThis.fetch) {
   const base = apiBase(baseUrl);
-  async function request<T>(path: string, parse: (value: unknown) => T, signal?: AbortSignal, body?: ContactInput|ReportInput|{query: string; consent: true}): Promise<T> {
+  async function request<T>(path: string, parse: (value: unknown) => T, signal?: AbortSignal, body?: ContactInput|ReportInput|{query: string; consent: true; context:RecommendationIntent|null|undefined}): Promise<T> {
     const controller = new AbortController();
     const abort = () => controller.abort();
     if (signal?.aborted) abort();
@@ -124,9 +148,10 @@ export function createApi(baseUrl = '/api', fetcher: typeof fetch = globalThis.f
     } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
   }
   return {
-    recommendations(query: string, signal?: AbortSignal) {
-      return request('/ai/recommendations', parseRecommendations, signal, {query, consent: true});
+    recommendations(query: string, signal?: AbortSignal, context?: RecommendationIntent|null) {
+      return request('/ai/recommendations', parseRecommendations, signal, {query, consent: true, context});
     },
+    suggestions(signal?:AbortSignal) {return request('/ai/suggestions',parseSuggestions,signal);},
     report(id:string,input:ReportInput,signal?:AbortSignal){
       if(!isProgramId(id))return Promise.reject(new ApiError(404));
       return request('/programs/'+encodeURIComponent(id)+'/reports',value=>{if(record(record(value).data).accepted!==true)return invalid();return {accepted:true as const};},signal,input);
@@ -154,7 +179,7 @@ export function createApi(baseUrl = '/api', fetcher: typeof fetch = globalThis.f
       const result: Taxonomy[] = [];
       for (let page = 1; page <= 10000; page++) {
         const response = await request(`/${kind}?limit=50&page=${page}`, value => parsePage(value, parseTaxonomy), signal);
-        result.push(...response.data);
+        result.push(...response.data.filter(item=>!isDemoReference(item)&&(kind!=='categories'||isPublicCategory(item.slug))));
         if (page >= response.pagination.totalPages) return result;
       }
       return invalid();

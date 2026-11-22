@@ -13,6 +13,6 @@ export function CatalogStatus() {
   const catalog = useCatalog();
   if (catalog.loading) return <p role="status">{""+tr("m280")+""}</p>;
   if (catalog.error) return <RequestError error={catalog.error} retry={catalog.retry}/>;
-  if (!catalog.categories.length && !catalog.regions.length) return <p className="demo-notice">{""+tr("m299")+""}</p>;
+  if (!catalog.categories.length && !catalog.regions.length) return <p className="catalog-empty-notice">{""+tr("m299")+""}</p>;
   return null;
 }

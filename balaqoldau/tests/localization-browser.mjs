@@ -16,16 +16,17 @@ const server=await serveBuiltSite(fileURLToPath(new URL('../dist',import.meta.ur
 const origin='http://127.0.0.1:'+server.address().port;
 const browser=await adminBrowser(cwd);
 const id='11111111-1111-4111-8111-111111111111';
-const program={id,slug:'test-original',title:'SOURCE original title',description:'SOURCE original description',category:'test-support',regions:['test-region'],familyCategories:[],sourceUrl:'https://example.com/test',sourceName:'SOURCE original source',applyUrl:'https://example.com/apply',verifiedAt:'2026-11-11T00:00:00Z',ageMin:0,ageMax:17,deadline:null,isDemo:false};
+const program={id,slug:'test-original',title:'SOURCE original title',description:'SOURCE original description',category:'clubs',regions:['test-region'],familyCategories:[],sourceUrl:'https://example.com/test',sourceName:'SOURCE original source',applyUrl:'https://example.com/apply',verifiedAt:'2026-11-11T00:00:00Z',ageMin:0,ageMax:17,deadline:null,isDemo:false};
 const privateProgram={...program,status:'draft',version:1,createdBy:id,submittedBy:null,reviewedBy:null};
 const taxonomy=[{id:'1',slug:'test-support',name:'SOURCE original category'}];
 const publicQueries=[];
 const page=data=>({data,pagination:{page:1,limit:20,total:data.length,totalPages:data.length?1:0}});
-let user=false,admin=false,empty=false,fail=false,noCategories=false,programStatus='draft',count=0;
+let user=false,admin=false,empty=false,fail=false,noCategories=false,missingProgramSource=false,programStatus='draft',count=0;
 let children=[],childSequence=1,childFail=false,childDelay=0,childRecommendationsEmpty=false;
 const childRequests=[];
 let reportState='open',reportVersion=1;
 let aiState='results';
+let catalogSuggestions=false;
 let releaseAI;
 const aiRequests=[];
 const reportId='77777777-7777-4777-8777-777777777777';
@@ -43,7 +44,7 @@ const intercept=async event=>{
     childRequests.push({path:p,search:url.search,method});
     if(!user){status=401;body={error:{code:'UNAUTHENTICATED'}};}
     else if(childFail){status=503;body={error:{code:'AUTH_UNAVAILABLE',message:'DO NOT DISPLAY PRIVATE DATA'}};}
-    else if(p==='/api/auth/children/options')body={data:{regions:[{slug:'test-region',name:'SOURCE original region'}],categories:[{slug:'test-support',name:'SOURCE original category'}]}};
+    else if(p==='/api/auth/children/options')body={data:{regions:[{slug:'test-region',name:'SOURCE original region'}],categories:[{slug:'clubs',name:'SOURCE original category'},{slug:'demo-example',name:'DEMO fixture'}]}};
     else if(p==='/api/auth/children'&&method==='GET'){if(childDelay)await new Promise(resolve=>setTimeout(resolve,childDelay));body={data:children};}
     else if(p==='/api/auth/children'&&method==='POST'){status=201;const c={...input,id:'44444444-4444-4444-8444-'+String(childSequence++).padStart(12,'0'),version:1};children.push(c);body={data:c};}
     else{
@@ -59,6 +60,7 @@ const intercept=async event=>{
       else {status=400;body={error:{code:'VALIDATION_ERROR'}};}
     }
   }
+  else if(p==='/api/ai/suggestions')body={data:catalogSuggestions?[{category:'clubs',age:7,region:'astana'}]:[]};
   else if(p==='/api/ai/recommendations'){
     aiRequests.push({method:event.params.request.method,search:url.search,input:JSON.parse(event.params.request.postData)});
     if(aiState==='results')await new Promise(resolve=>{releaseAI=resolve;});
@@ -66,6 +68,10 @@ const intercept=async event=>{
       status=503;body={error:{code:'AI_UNAVAILABLE',message:'DO NOT DISPLAY RAW SERVER MESSAGE'}};
     }else if(aiState==='error'){
       status=500;body={error:{message:'DO NOT DISPLAY RAW SERVER MESSAGE'}};
+    }else if(aiState==='followUp'){
+      const input=aiRequests.at(-1).input;
+      const intent={category:'clubs',age:input.query==='8'?8:7,region:input.context?.region??null,need:null};
+      body={intent,data:[],followUp:null};
     }else{
       const russian=aiRequests.at(-1).input.query.startsWith('Какие пособия');
       const intent=aiState==='clarify'?{age:null,region:null,need:null,category:null}:
@@ -94,10 +100,11 @@ const intercept=async event=>{
     if(url.searchParams.has('lang'))failures.push('UI locale leaked into admin API query');
     body=page([privateProgram]);
   }
-  else if(p.startsWith('/api/admin/programs/'))body={data:{...privateProgram,status:programStatus,createdBy:programStatus==='review'?'22222222-2222-4222-8222-222222222222':id,reviewedBy:programStatus==='verified'?'22222222-2222-4222-8222-222222222222':null}};
+  else if(p.startsWith('/api/admin/programs/'))body={data:{...privateProgram,sourceUrl:missingProgramSource?null:privateProgram.sourceUrl,status:programStatus,createdBy:programStatus==='review'?'22222222-2222-4222-8222-222222222222':id,reviewedBy:programStatus==='verified'?'22222222-2222-4222-8222-222222222222':null}};
   else if(p==='/api/programs/'+id+'/reports'){status=202;body={data:{accepted:true}};}
   else if(p==='/api/contact-messages'){status=201;body={data:{id}};}
-  else if(p==='/api/family-categories')body=page([{id:'1',slug:'test-need',name:'SOURCE original need'}]);
+  else if(p==='/api/family-categories')body=page([{id:'1',slug:'test-need',name:'SOURCE original need'},
+    {id:'2',slug:'sports-activities',name:'SOURCE sport'},{id:'3',slug:'education-support',name:'SOURCE education'}]);
   else if(p==='/api/categories')body=page(taxonomy);
   else if(p==='/api/regions')body=page([{id:'1',slug:'test-region',name:'SOURCE original region'}]);
   else if(p==='/api/programs'||p==='/api/program-matches'){
@@ -189,6 +196,19 @@ try{
     admin=true;noCategories=true;await browser.navigate(origin+'/admin/programs/new?lang='+language);await expectPage('m015',language);
     await browser.until(`document.body.innerText.includes(${JSON.stringify(tr('m305',{},language))})`);
     noCategories=false;count++;console.log('PASS '+count+': '+language+' unavailable admin taxonomy');
+    programStatus='draft';missingProgramSource=true;
+    await browser.navigate(origin+'/admin/programs/'+id+'?lang='+language);
+    await expectPage('SOURCE original title',language);
+    const submit=JSON.stringify(tr('m140',{},language));
+    const submitAvailable=`[...document.querySelectorAll('.admin-actions button')].some(button=>button.textContent.trim()===${submit}&&!button.disabled)`;
+    assert.equal(await browser.evaluate("document.querySelector('#admin-submit-blocker').textContent"),tr('adminSubmitMissingSourceUrl',{},language));
+    assert.equal(await browser.evaluate("document.querySelector('.admin-page-heading a').pathname"),'/admin/programs/'+id+'/edit');
+    assert.equal(await browser.evaluate(submitAvailable),false);
+    missingProgramSource=false;
+    await browser.button(tr('m096',{},language));
+    await browser.until(submitAvailable);
+    assert.equal(await browser.evaluate("!!document.querySelector('#admin-submit-blocker')"),false);
+    count++;console.log('PASS '+count+': '+language+' missing draft source guidance and restored submit action');
     for(const [status,actionKey]of [['draft','m140'],['review','m141'],['verified','m143'],['published','m144'],['published','m365'],['published','m367'],['rejected','m366'],['archived','m366']]){
       programStatus=status;await browser.navigate(origin+'/admin/programs/'+id+'?lang='+language);await expectPage('SOURCE original title',language);
       await browser.button(tr(actionKey,{},language));await browser.until("!!document.querySelector('.admin-confirm')");
@@ -222,7 +242,7 @@ try{
     assert.ok((await browser.evaluate('document.title')).includes(tr('aiTitle',{},language)));
     assert.equal(await browser.evaluate("document.querySelector('#ai-privacy').textContent"),tr('aiPrivacy',{},language));
     assert.ok(tr('aiPrivacy',{},language).includes(language==='kk'?'машиналық оқыту':'машинного обучения'));
-    const query=tr('aiPromptSport',{},language);
+    const query=tr('aiExampleBenefits',{},language);
     const naturalQuestion=language==='ru'?'Какие пособия доступны для ребенка до года?':'Алматыда тегін үйірмелер бар ма?';
     await browser.until("!!document.querySelector('.ai-suggestions button')");
     await browser.evaluate("document.querySelector('.ai-suggestions button').click()");
@@ -244,7 +264,7 @@ try{
         releaseAI=undefined;
       }
       await browser.until(`document.querySelector('.ai-turn:last-child .ai-reply')?.innerText.includes(${JSON.stringify(tr(key,{},language))})`);
-      assert.deepEqual(aiRequests.at(-1),{method:'POST',search:'',input:{query:question,consent:true}});
+      assert.deepEqual(aiRequests.at(-1),{method:'POST',search:'',input:{query:question,consent:true,context:null}});
       assert.equal(await browser.evaluate("document.querySelectorAll('.ai-turn').length"),index+1);
       const source=await browser.evaluate("document.querySelector('.ai-turn:last-child .ai-programs a[rel=noreferrer]')?.getAttribute('href') ?? null");
       assert.equal(source,state==='results'?'https://example.com/test':null);
@@ -254,7 +274,8 @@ try{
         for(const [status,label] of [['match','m306'],['possible','m307']]){
           assert.equal(await browser.evaluate(`document.querySelector('.ai-programs .matching-${status} strong').textContent`),tr(label,{},language));
         }
-        assert.equal(await browser.evaluate("document.querySelector('.ai-programs li:has(.matching-possible) > p')"),null);
+        assert.equal(await browser.evaluate(`[...document.querySelectorAll('.ai-programs li:has(.matching-possible) > p')].some(p=>p.textContent===${JSON.stringify(tr('aiAgeRange',{0:0,1:17},language))})`),false);
+        assert.equal(await browser.evaluate(`document.querySelector('.ai-programs').innerText.includes(${JSON.stringify(tr('programOriginalLanguage',{},language))})`),language==='ru');
         if(language==='kk')assert.ok((await browser.evaluate("document.querySelector('.ai-reply:has(.ai-programs)').innerText")).includes(tr('aiClubFees',{},language)));
       }
     }
@@ -272,7 +293,7 @@ try{
     assert.equal(await browser.evaluate("!!document.querySelector('.recommendation-assistant')"),false);
     count++;console.log('PASS '+count+': '+language+' chat suggestions, consent, history, sourced matches, errors and manual fallback');
     await browser.until("!!document.querySelector('select[name=need] option[value=\"test-need\"]')");
-    await browser.setValue('input[name=age]','6');await browser.setValue('select[name=region]','test-region');await browser.setValue('select[name=category]','test-support');await browser.setValue('select[name=need]','test-need');
+    await browser.setValue('input[name=age]','6');await browser.setValue('select[name=region]','test-region');await browser.setValue('select[name=category]','clubs');await browser.setValue('select[name=need]','test-need');
     await browser.evaluate("document.querySelector('.search-form').requestSubmit()");
     await browser.until("location.pathname==='/results'&&!!document.querySelector('.matching-match')");
     assert.equal(await browser.evaluate("new URLSearchParams(location.search).get('matching')"),'1');
@@ -291,6 +312,33 @@ try{
     await browser.send('Page.reload');await browser.until("!!document.querySelector('.matching-not_match')");
     count++;console.log('PASS '+count+': '+language+' incompatible filters remain explicit and persist after refresh');
   }
+  catalogSuggestions=true;
+  program.translationRu={title:'Название программы RU',description:'Описание программы RU'};
+  for(const language of ['kk','ru']){
+    await browser.navigate(origin+'/ai-assistant?lang='+language);await expectPage('aiTitle',language);
+    const suggestion=tr('aiCatalogPrompt',{0:tr('m421',{},language),1:7,2:tr('m439',{},language)},language);
+    await browser.until(`document.querySelector('.ai-suggestions button')?.textContent===${JSON.stringify(suggestion)}`);
+    await browser.button(suggestion);
+    assert.equal(await browser.evaluate("document.querySelector('.ai-composer textarea').value"),suggestion);
+    aiState='followUp';
+    await browser.evaluate("document.querySelector('.ai-consent input').click()");
+    await browser.evaluate("document.querySelector('form.ai-composer').requestSubmit()");
+    await browser.until("!!document.querySelector('.ai-turn .ai-intent')");
+    const expectedContext={category:'clubs',age:7,region:'astana',need:null};
+    assert.deepEqual(aiRequests.at(-1).input.context,expectedContext);
+    await browser.setValue('.ai-composer textarea','8');
+    await browser.evaluate("document.querySelector('form.ai-composer').requestSubmit()");
+    await browser.until("document.querySelectorAll('.ai-turn .ai-intent').length===2");
+    assert.deepEqual(aiRequests.at(-1).input.context,expectedContext);
+    await browser.navigate(origin+'/program/'+id+'?lang='+language);
+    await expectPage(language==='ru'?'Название программы RU':'SOURCE original title',language);
+    const description=language==='ru'?'Описание программы RU':'SOURCE original description';
+    assert.ok((await browser.evaluate("document.querySelector('.details-content').innerText")).includes(description));
+    assert.equal(await browser.evaluate("document.querySelector('.details-content a').getAttribute('href')"),program.sourceUrl);
+    count++;console.log('PASS '+count+': '+language+' catalog-derived suggestion and localized program details');
+  }
+  catalogSuggestions=false;
+  delete program.translationRu;
   assert.deepEqual(failures,[]);assert.deepEqual(browser.errors,[]);
   for(const language of ['kk','ru']){
     children=[];user=true;admin=false;childRequests.length=0;childDelay=450;
@@ -302,13 +350,44 @@ try{
     await browser.until(`document.body.innerText.includes(${JSON.stringify(authText[language].childInvalid)})`);
     assert.equal(childRequests.filter(r=>r.method==='POST').length,0,'invalid form never sends a mutation');
     await browser.setValue('#child-nickname','TEST nickname');await browser.setValue('#child-age','6');await browser.setValue('#child-region','test-region');
-    await browser.evaluate("document.querySelector('.child-preferences input').click()");
+    await browser.setValue('#child-full-name','TEST Private Name');
+    await browser.setValue('#child-gender','female');
+    await browser.evaluate("document.querySelector('#child-interest-education').click(); document.querySelector('#child-interest-sports').click()");
+    assert.equal(await browser.evaluate("document.querySelector('#child-age').getAttribute('aria-describedby')"),'child-age-hint');
+    assert.equal(await browser.evaluate("document.querySelector('.child-private-fields').open"),false);
+    await browser.evaluate("document.querySelector('.child-private-fields summary').click()");
+    await browser.setValue('#child-disabilitySupportEligible','true');
     await choose(language==='kk'?'ru':'kk');await expectPage('m335',language==='kk'?'ru':'kk');
     assert.equal(await browser.evaluate("document.querySelector('#child-nickname').value"),'TEST nickname');await choose(language);
     await browser.evaluate("document.querySelector('.child-editor form').requestSubmit()");await browser.until("document.querySelectorAll('.child-card').length===1&&!document.querySelector('.child-editor')");
     await browser.button(tr('m337',{},language));await browser.until("!!document.querySelector('#child-age')");await browser.setValue('#child-age','0');await browser.setValue('#child-region','test-region');
     await browser.evaluate("document.querySelector('.child-editor form').requestSubmit()");await browser.until("document.querySelectorAll('.child-card').length===2&&!document.querySelector('.child-editor')");
     count++;console.log('PASS '+count+': '+language+' child loading, empty, validation, multiple profiles and locale-preserved draft');
+    assert.equal(children[0].familyContext.disabilitySupportEligible,true);
+    const cardText=await browser.evaluate("document.querySelector('.child-card').innerText");
+    assert.ok(cardText.includes('TEST Private Name'));
+    assert.ok(!cardText.includes(tr('m483',{},language)));
+    for(const [width,columns] of [[375,1],[1024,2]]){
+      await browser.send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<700});
+      assert.equal(await browser.evaluate("getComputedStyle(document.querySelector('.child-card-grid')).gridTemplateColumns.split(' ').length"),columns);
+      assert.equal(await browser.evaluate("getComputedStyle(document.querySelector('.child-facts')).gridTemplateColumns.split(' ').length"),columns);
+      assert.equal(await browser.evaluate("document.querySelector('#child-add').getBoundingClientRect().width<document.querySelector('.child-toolbar').getBoundingClientRect().width"),true);
+    }
+    await browser.send('Emulation.clearDeviceMetricsOverride');
+    const previousAIRequests=aiRequests.length;
+    await browser.setValue('.child-card .child-interest-picker select','sports');
+    await browser.evaluate("document.querySelector('.child-card .child-find').click()");
+    await expectPage('m178',language);
+    await browser.until("document.querySelector('select[name=need]')?.value==='sports-activities'");
+    assert.equal(await browser.evaluate("document.querySelector('input[name=age]').value"),'6');
+    assert.equal(await browser.evaluate("document.querySelector('select[name=region]').value"),'test-region');
+    const safeSearch=new URLSearchParams(await browser.evaluate('location.search'));
+    assert.deepEqual(Object.fromEntries(safeSearch),{age:'6',region:'test-region',lang:language,need:'sports-activities'});
+    assert.equal(aiRequests.length,previousAIRequests);
+    await browser.navigate(origin+'/profile/children?lang='+language);
+    await expectPage('m335',language);
+    await browser.until("document.querySelectorAll('.child-card').length===2");
+    count++;console.log('PASS '+count+': '+language+' compact profiles and allowlisted catalog handoff');
     await browser.button(tr('m345',{},language));await browser.until("!!document.querySelector('#child-age')");await browser.setValue('#child-age','8');
     await browser.evaluate("document.querySelector('.child-editor form').requestSubmit()");await browser.until("!document.querySelector('.child-editor')&&document.querySelectorAll('.child-card').length===2");assert.equal(children[0].age,8);
     await browser.button(tr('m346',{},language));await browser.until("!!document.querySelector('[role=alertdialog]')");

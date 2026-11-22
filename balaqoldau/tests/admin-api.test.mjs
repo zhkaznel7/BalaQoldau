@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createAdminApi, AdminError } from '../src/admin/api.ts';
-import { permittedActions, canEdit } from '../src/admin/types.ts';
+import { permittedActions, canEdit, draftSubmissionBlocker } from '../src/admin/types.ts';
 import { validateProgramForm, initialForm } from '../src/admin/form.ts';
 
 const csrf = 'b'.repeat(64), id = '11111111-1111-4111-8111-111111111111';
@@ -63,6 +63,29 @@ test('program form reports clear field errors and preserves age zero', () => {
   for (const [key, field] of [['ageMax','-1'], ['deadline','2026-02-30'], ['sourceUrl','javascript:alert(1)']]) {
     assert.equal(typeof validateProgramForm({ ...value, [key]: field })[key], 'string');
   }
+});
+
+test('draft submission explains its prerequisites without restricting draft edits', () => {
+  const admin = { id, role: 'admin', permissions: ['programs:draft:write','programs:publish'] };
+  const draft = { id, createdBy: 'other', status: 'draft', sourceUrl: 'https://example.com', sourceName: 'TEST', isDemo: false };
+  for (const [source, reason] of [
+    [{sourceUrl:null}, 'adminSubmitMissingSourceUrl'],
+    [{sourceName:null}, 'adminSubmitMissingSourceName'],
+    [{sourceUrl:null, sourceName:null}, 'adminSubmitMissingSource'],
+  ]) {
+    const incomplete = {...draft, ...source};
+    assert.equal(canEdit(admin, incomplete), true);
+    assert.equal(draftSubmissionBlocker(admin, incomplete), reason);
+    assert.deepEqual(permittedActions(admin, incomplete), ['archive']);
+  }
+  assert.equal(draftSubmissionBlocker(admin, {...draft, isDemo:true}), 'adminSubmitDemo');
+  for (const role of ['editor', 'reviewer']) {
+    const other = {...admin, role, permissions:role === 'editor' ? ['programs:draft:write'] : ['programs:review']};
+    assert.equal(draftSubmissionBlocker(other, draft), 'adminSubmitPermission');
+    assert.ok(!permittedActions(other, draft).includes('submit'));
+  }
+  assert.equal(draftSubmissionBlocker(admin, draft), null);
+  assert.deepEqual(permittedActions(admin, draft), ['submit','archive']);
 });
 test('admin configuration rejects cross-origin and ambiguous paths', () => {
   for (const base of ['https://example.com/admin', '//example.com/admin', '/api/../admin', '/api/admin?x=1', '/api\\admin']) {

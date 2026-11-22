@@ -7,6 +7,7 @@ import {parseEnvironment} from '../../dist/config/env.js';
 import {parseTestDatabaseEnvironment} from '../../dist/db/config.js';
 import {createDatabasePool} from '../../dist/db/pool.js';
 import {runMigrations} from '../../dist/db/migrate.js';
+import {findMatches} from '../../dist/matching/repository.js';
 
 test('keyless recommendations use real PostgreSQL visibility, category, eligibility and ranking', async t => {
   const database = parseTestDatabaseEnvironment(process.env);
@@ -28,6 +29,9 @@ test('keyless recommendations use real PostgreSQL visibility, category, eligibil
       ['club', 'clubs', 'almaty-city', 5, 12, {need: 'sports-activities'}],
       ['wrong-region', 'clubs', 'astana', 5, 12],
       ['wrong-need', 'clubs', 'almaty-city', 5, 12, {need: 'creative-development'}],
+      ['narrow-incomplete', 'clubs', 'almaty-city', 12, 17, {need: 'sports-activities', complete:false}],
+      ['wrong-region-incomplete', 'clubs', 'astana', 5, 12, {need: 'sports-activities', complete:false}],
+      ['stale-course', 'free-courses', 'astana', 5, 12, {verified:'2000-01-01'}],
       ['stale', 'benefits', 'astana', 0, 2, {verified: '2000-01-01'}],
       ['review-age-limit', 'benefits', 'astana', 0, 2, {verified: new Date(Date.now() - 8 * 86400000).toISOString()}],
       ['recheck', 'benefits', 'astana', 0, 2, {recheck: true}],
@@ -69,7 +73,7 @@ test('keyless recommendations use real PostgreSQL visibility, category, eligibil
     const location = await ask('Астанада 2 жастағы балаға қандай көмек бар?');
     assert.deepEqual(location.intent,{age:2,region:'astana',need:null,category:null});
     const confirmed = location.data.find(item => item.id === ids.infant);
-    assert.equal(confirmed?.matching.status, 'MATCH');
+    assert.equal(confirmed?.matching.status, 'POSSIBLE');
     assert.equal(confirmed.title, 'TEST infant');
     assert.equal(confirmed.sourceUrl, 'https://example.com/infant');
     assert.equal((await fetch(base+'/programs/'+confirmed.id)).status,200);
@@ -92,10 +96,21 @@ test('keyless recommendations use real PostgreSQL visibility, category, eligibil
     assert.ok(clubs.data.some(item => item.id === ids.club));
     assert.ok(clubs.data.every(item => item.category === 'clubs' && item.regions.includes('almaty-city')));
 
-    const sports = await ask('Нужен спортивный кружок для ребёнка 7 лет в Алматы');
+    const sports = await ask('Алматыда 7 жастағы балама спорт секциясы керек');
+    assert.equal(sports.intent.category, 'clubs');
     assert.equal(sports.intent.need, 'sports-activities');
     assert.ok(sports.data.some(item => item.id === ids.club && item.matching.status === 'MATCH'));
-    assert.ok(!sports.data.some(item => item.id === ids['wrong-need']));
+    assert.deepEqual(sports.data.map(item=>item.id),[ids.club]);
+    const creative = await findMatches(db,{category:'clubs',need:'creative-development',age:7,region:'almaty-city',recommendationReviewDays:7,page:1,limit:5});
+    assert.deepEqual(creative.data.map(item=>item.id),[ids['wrong-need']]);
+    const noCourses = await findMatches(db,{category:'free-courses',age:7,region:'astana',recommendationReviewDays:7,page:1,limit:5});
+    assert.deepEqual(noCourses.data,[]);
+    const suggestions = await (await fetch(base+'/ai/suggestions')).json();
+    assert.deepEqual(suggestions.data.map(item=>item.category),['benefits','clubs','grants']);
+    for (const item of suggestions.data) {
+      const matches = await findMatches(db,{...item,recommendationReviewDays:7,page:1,limit:5});
+      assert.ok(matches.data.length>0);
+    }
 
     assert.deepEqual(await ask('Алматы или Астана, 7 лет'), {
       intent:{age:null,region:null,need:null,category:null}, data:[],

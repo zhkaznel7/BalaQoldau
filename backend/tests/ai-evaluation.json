@@ -1,5 +1,5 @@
 [
-  {"query":"Алматыда 7 жастағы балаға спорт секциясы керек","expected":{"age":7,"region":"almaty-city","need":"sports-activities","category":null}},
+  {"query":"Алматыда 7 жастағы балаға спорт секциясы керек","expected":{"age":7,"region":"almaty-city","need":"sports-activities","category":"clubs"}},
   {"query":"Астанада 10 жастағы балаға сурет үйірмесі қажет","expected":{"age":10,"region":"astana","need":"creative-development","category":"clubs"}},
   {"query":"Шымкентте 6 жас, оқу бойынша көмек керек","expected":{"age":6,"region":"shymkent","need":"education-support","category":null}},
   {"query":"Алматы облысы, 12 жаста, жүзу","expected":{"age":12,"region":"almaty-region","need":"sports-activities","category":null}},

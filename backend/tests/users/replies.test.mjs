@@ -30,7 +30,7 @@ test('both inboxes: private replies, delivery truthfulness, replay protection an
    assert.equal((await call('/auth/contact-messages','parent','POST',contact,false)).status,403);
    const program=randomUUID();
    await db.query(`INSERT INTO balaqoldau.programs(id,slug,category_id,title,description,status,source_url,source_name,verified_at)
-    SELECT $1,$2,id,'TEST reply fixture','TEST fixture, rolled back','published','https://example.com/test','TEST',now() FROM balaqoldau.categories LIMIT 1`,[program,'test-reply-'+program]);
+    SELECT $1,$2,id,'TEST reply fixture','TEST fixture, rolled back','published','https://example.com/test','TEST',now() FROM balaqoldau.categories WHERE slug='clubs'`,[program,'test-reply-'+program]);
    const report=await call('/auth/programs/'+program+'/reports','parent','POST',{reason:'incorrect',explanation:'TEST'});assert.equal(report.status,202);
    reportId=(await db.query('SELECT id FROM balaqoldau.program_reports WHERE program_id=$1 AND user_id=$2',[program,actors.parent.id])).rows[0].id;
   });

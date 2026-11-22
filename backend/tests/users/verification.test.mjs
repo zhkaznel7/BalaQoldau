@@ -6,7 +6,7 @@ test('verification, expiration, reports and immutable decisions: rollback-only d
  const {pool,config}=await openUserDatabase(),db=await pool.connect();let server;
  try{
   await db.query('BEGIN');const slug='test-verify-'+randomUUID(),origin='https://staff.example.com';
-  const category=(await db.query('INSERT INTO balaqoldau.categories(slug,name) VALUES($1,$2) RETURNING id',[slug,'TEST category'])).rows[0].id;
+  const category=(await db.query("SELECT id FROM balaqoldau.categories WHERE slug='clubs'")).rows[0].id;
   const region=(await db.query('INSERT INTO balaqoldau.regions(slug,name) VALUES($1,$2) RETURNING id',[slug,'TEST region'])).rows[0].id;
   const hash=await hashPassword('TEST verification fixture password!'),users={};
   for(const name of ['editor','other','reviewer','admin']){const u={id:randomUUID(),token:randomToken(),csrf:randomToken()};users[name]=u;
@@ -20,7 +20,7 @@ test('verification, expiration, reports and immutable decisions: rollback-only d
   server=createApp(parseEnvironment({...config,NODE_ENV:'test',ADMIN_ENABLED:'true',ADMIN_ORIGIN:origin,USER_AUTH_ENABLED:'true',USER_ORIGIN:origin,CORS_ALLOWED_ORIGINS:origin,PROGRAM_REVIEW_DAYS:'7',RATE_LIMIT_MAX:'1000'}),db).listen(0,'127.0.0.1');await once(server,'listening');const base='http://127.0.0.1:'+server.address().port+'/api';
   const call=(path,role='admin',method='GET',body,csrf=true)=>fetch(base+'/admin'+path,{method,headers:{Origin:origin,...(role?{Cookie:'balaqoldau_admin='+users[role].token,...(csrf?{'X-CSRF-Token':users[role].csrf}:{})}:{}),...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})});
   const regular=path=>fetch(base+'/auth'+path,{headers:{Origin:origin,Cookie:'balaqoldau_user='+parent.token}});
-  const input={slug,category:slug,title:'TEST verification fixture',description:'TEST only, never an official opportunity',sourceUrl:'https://example.com/test',sourceName:'TEST provider',ageMin:0,ageMax:17,regions:[slug],expiresOn:'2099-01-01'};
+  const input={slug,category:'clubs',title:'TEST verification fixture',description:'TEST only, never an official opportunity',sourceUrl:'https://example.com/test',sourceName:'TEST provider',ageMin:0,ageMax:17,regions:[slug],expiresOn:'2099-01-01'};
   const checks={sourceReviewed:true,informationReviewed:true,eligibilityReviewed:true,notes:'TEST reviewed against synthetic source'};let p;
   const act=async(action,role,extra={})=>{const response=await call('/programs/'+p.id+'/'+action,role,'POST',{version:p.version,...(['publish','archive'].includes(action)?{confirm:true}:{}),...extra});assert.equal(response.status,200);p=(await response.json()).data;return p;};
   await t.test('strict source input, state selection, auth and CSRF cannot bypass review',async()=>{
@@ -75,12 +75,12 @@ test('verification, expiration, reports and immutable decisions: rollback-only d
    assert.equal((await call('/reports/'+report.id,'reviewer','POST',{version:report.version+1,status:'resolved'})).status,200);
   });
   await t.test('deadline and expiry use one public visibility boundary for search, detail, saved and children',async()=>{
-   const hidden=async()=>{assert.equal((await fetch(base+'/programs/'+p.id)).status,404);assert.equal((await fetch(base+'/program-matches/'+p.id)).status,404);assert.equal((await (await fetch(base+'/programs?category='+slug)).json()).pagination.total,0);assert.equal((await (await regular('/saved-programs')).json()).data.length,0);assert.equal((await (await regular('/children/'+child+'/recommendations')).json()).pagination.total,0);};
+   const hidden=async()=>{assert.equal((await fetch(base+'/programs/'+p.id)).status,404);assert.equal((await fetch(base+'/program-matches/'+p.id)).status,404);assert.equal((await (await fetch(base+'/programs?category=clubs&region='+slug)).json()).pagination.total,0);assert.equal((await (await regular('/saved-programs')).json()).data.length,0);assert.equal((await (await regular('/children/'+child+'/recommendations')).json()).pagination.total,0);};
    await db.query("UPDATE balaqoldau.programs SET deadline='2000-01-01' WHERE id=$1",[p.id]);await hidden();
    await db.query("UPDATE balaqoldau.programs SET deadline=NULL,expires_on='2000-01-01' WHERE id=$1",[p.id]);await hidden();
    await db.query("UPDATE balaqoldau.programs SET expires_on='2099-01-01',verified_at=now()-interval '30 days' WHERE id=$1",[p.id]);
    const dashboard=(await (await call('/programs/dashboard')).json()).data;assert.equal(dashboard.reviewPeriodDays,7);assert.ok(dashboard.counts.needsReverification>=1);
-   const filtered=await call('/programs?category='+slug+'&region='+slug+'&needsReview=true&expiration=active');assert.equal(filtered.status,200);assert.equal((await filtered.json()).pagination.total,1);
+   const filtered=await call('/programs?category=clubs&region='+slug+'&needsReview=true&expiration=active');assert.equal(filtered.status,200);assert.equal((await filtered.json()).pagination.total,1);
    assert.equal((await call('/programs?verifiedFrom=2026-12-01&verifiedTo=2026-01-01')).status,400);
    assert.equal((await call('/programs/'+p.id+'/request-recheck','reviewer','POST',{version:p.version,notes:'TEST check'})).status,403);
    await act('request-recheck','admin',{notes:'TEST source needs rechecking'});await hidden();assert.equal(p.status,'published');
