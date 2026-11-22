@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { resultsUrl } from '../api/navigation';
 import SupportFinder from './SupportFinder';
+import {carryLanguage} from './language';
 import {categoryName} from '../api/categories';
 import {Search,ClipboardCheck,MessageSquare,ShieldCheck,WalletCards,GraduationCap,Palette,Award,ArrowUpRight} from 'lucide-react';
 
@@ -32,6 +33,9 @@ export default function Home() {
           <p>{""+tr("m268")+""}</p>
         </div>
         <SupportFinder />
+        <Link className="button hero-assistant-link" to={'/ai-assistant' + carryLanguage(location.search, '')}>
+          <MessageSquare aria-hidden="true" size={18}/>{tr('aiSearch')}
+        </Link>
         <p className="hero-footnote">{""+tr("m269")+""}</p>
       </div>
       <aside className="portal-guide" id="how" tabIndex={-1} aria-labelledby="how-heading">

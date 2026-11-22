@@ -1,5 +1,28 @@
 # BalaQoldau — даму барысы
 
+## Dedicated AI Assistant page (2026-11-22)
+
+- The chat now lives at `/ai-assistant`. The localized primary navigation and homepage CTA open it in the current language. The chat header and recovery states link to `/find`, which contains the manual search form and filters.
+- The dedicated page gives the conversation and composer more room at desktop widths and stacks the controls on phones. It reuses the existing chat and recommendation endpoint, with the same consent, eligibility information, and sourced program cards.
+- Frontend typecheck, lint, and production build passed. Unit tests passed 87/87, localization browser checks passed 104/104, and browser integration passed 29/29. Checks covered direct navigation, refresh, language switching, mobile navigation, and chat and manual search behavior.
+
+## AI Assistant Phase 2 — keyless PostgreSQL search (2026-11-22)
+
+- The Phase 1 chat now extracts child age, region, category, and basic support needs locally from Kazakh and Russian questions. The existing recommendation endpoint searches PostgreSQL without an external model or API key. Missing or conflicting cues prompt for clarification when they prevent a useful search.
+- Recommendations use the public catalog view, the existing eligibility matcher, and the configured `PROGRAM_REVIEW_DAYS` verification window. Cards distinguish matches against recorded criteria from possible matches, and link to the existing detail pages and official sources. Manual filters remain available.
+- The real PostgreSQL suite passed 55/55. The assistant integration test uses records rolled back after the test and checks the four example questions, ranking, visibility, source freshness, and program detail links. The PostgreSQL user regression suite passed 65/65 against the same dedicated test database. Kazakh and Russian Chrome tests passed 102/102 with API fixtures, and all 38 local intent examples passed.
+- Frontend and backend typecheck, lint, and build passed. Frontend tests passed 87/87 and backend tests passed 153/153.
+- Ready for manual acceptance against a catalog with published, recently verified programs. Searches depend on supported vocabulary and the recorded catalog fields. Birth questions search age-zero benefits, and club costs require checking the official source. Each message is a separate search.
+
+## AI Assistant Phase 1 — chat interface (2026-11-22)
+
+- `/find` now has a responsive Kazakh and Russian chat above the manual filters. Suggested questions fill the composer, and the manual-search link moves focus to the filter form. Each message is a fresh search. The conversation stays in memory while the page is open.
+- The existing anonymous `POST /api/ai/recommendations` supplies the published catalog matches. Cards show the catalog title, age range, eligibility checks, official source, and program details. The UI handles requests in progress, requests that need clarification, empty results, API errors, and assistant unavailability.
+- Frontend and backend typecheck, lint, and build passed. Frontend tests passed 87/87 and backend tests passed 156/156. The isolated Chrome localization suite passed 102/102 with API fixtures, including chat and manual search in both languages at widths from 320 to 1440 px.
+- The existing service returns `AI_UNAVAILABLE` when an intent provider is absent, so manual search is the available path in that setup. Phase 1 used fixtures to verify the end-to-end UI states without a live OpenAI key. Live provider and PostgreSQL catalog acceptance testing remain outside this phase.
+
+2026-11-22 — Added the [program data-entry checklist](PROGRAM_DATA_CHECKLIST.md) with 10 blank slots for four benefits, two free courses, two grants and two clubs. It documents Admin field validation, source evidence and publication gates. No program records or application code were changed.
+
 Ағымдағы күй: Stage 8.2 Contact Privacy & Retention аяқталды (2026-11-12): cleanup командасы бар, scheduling қосылмаған. Public launch орындалған жоқ; production/оператор талаптары сақталады. Stage 8.3 басталған жоқ. Ертерек жазбалар тарихи есеп ретінде сақталған.
 
 ## Stage 1

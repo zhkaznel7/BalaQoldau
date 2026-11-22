@@ -58,7 +58,7 @@ export function createApp(config: Config, database?: Database, checkReady: Readi
   app.use(express.json({ limit: '16kb', strict: true, inflate: false }));
   app.use('/api', healthRouter);
   app.use('/api', readinessRouter(checkReady));
-  app.use('/api', apiRouter(database));
+  app.use('/api', apiRouter(config.PROGRAM_REVIEW_DAYS, database));
   app.use((_request, _response, next) => next(new HttpError(404, 'NOT_FOUND', 'Route not found.')));
   app.use(errorHandler);
   return app;

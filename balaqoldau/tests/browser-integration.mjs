@@ -181,7 +181,8 @@ try {
     assert.equal(await evaluate('document.querySelectorAll(".portal-help").length'),0);
     assert.equal(await evaluate('document.querySelectorAll(".platform-notice,.about-disclaimer").length'),0);
     assert.equal(await evaluate('document.querySelector(".header").getBoundingClientRect().top'),0);
-    assert.equal(await evaluate('document.querySelectorAll("#primary-navigation a").length'),4);
+    assert.equal(await evaluate('document.querySelectorAll("#primary-navigation a").length'),5);
+    assert.equal(await evaluate('document.querySelector("#primary-navigation a[href^=\'/ai-assistant\']").textContent'),tr('aiTitle',{},language));
     assert.equal(await evaluate('document.querySelectorAll("#primary-navigation a[href*=\'#how\']").length'),0);
     assert.equal(await evaluate('document.querySelectorAll("#how ol li").length'),3);
     assert.equal(await evaluate(`document.querySelectorAll('.portal-about a[href="/contact"]').length`),1);
@@ -401,7 +402,7 @@ try {
   check('six long API category options and one four-link category navigation fit five widths');
 
   const auditReports = [];
-  const routes = ['/', '/find', '/results?limit=1', '/results?q=empty', '/results?q=fail', '/program/' + id1, '/program/44444444-4444-4444-8444-444444444444', '/favorites', '/contact', '/not-found'];
+  const routes = ['/', '/find', '/ai-assistant', '/results?limit=1', '/results?q=empty', '/results?q=fail', '/program/' + id1, '/program/44444444-4444-4444-8444-444444444444', '/favorites', '/contact', '/not-found'];
   for (const route of routes) {
     await navigate(route); await until('!document.querySelector("[aria-busy=true]") && !document.querySelector("select:disabled")');
     for (const width of [320, 375, 768, 1024, 1440]) {
@@ -415,7 +416,7 @@ try {
     }
   }
   await writeFile(path.join(cwd, 'node_modules/.cache/stage6-accessibility.json'), JSON.stringify(auditReports, null, 2));
-  check('50 page/width combinations: no overflow, semantic headings/labels and computed WCAG AA text contrast');
+  check(`${auditReports.length} page/width combinations: no overflow, semantic headings/labels and computed WCAG AA text contrast`);
   await navigate('/'); await until('document.querySelector(".hero-finder select[name=category]")?.options.length===7');
   assert.equal(await evaluate('getComputedStyle(document.querySelector(".hero-copy")).animationName'), 'none');
   assert.equal(await evaluate('getComputedStyle(document.querySelector(".hero-finder")).animationName'), 'none');

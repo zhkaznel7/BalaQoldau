@@ -19,6 +19,7 @@ test('anonymous matching SQL, pagination and visibility with rolled-back TEST fi
       ['first','published',false,true,5,10,'2099-01-01'],['tie','published',false,true,5,10,'2099-01-01'],
       ['legacy','published',false,false,0,17,null],['age','published',false,true,12,17,'2099-01-01'],
       ['expired','published',false,true,0,17,'2000-01-01'],['draft','draft',false,true,0,17,null],['demo','draft',true,true,0,17,null],
+      ['verified','verified',false,true,0,17,null],['recheck','published',false,true,0,17,null],
     ]){
       const id=randomUUID();ids[name]=id;
       await db.query(`INSERT INTO balaqoldau.programs(id,slug,category_id,title,description,status,is_demo,eligibility_complete,age_min,age_max,deadline,source_url,source_name,verified_at)
@@ -26,6 +27,7 @@ test('anonymous matching SQL, pagination and visibility with rolled-back TEST fi
       await db.query('INSERT INTO balaqoldau.program_regions(program_id,region_id) VALUES($1,$2)',[id,region]);
       await db.query('INSERT INTO balaqoldau.program_family_categories(program_id,family_category_id) VALUES($1,$2)',[id,family]);
     }
+    await db.query('UPDATE balaqoldau.programs SET source_needs_recheck=true WHERE id=$1',[ids.recheck]);
     server=createApp(parseEnvironment({NODE_ENV:'test',CORS_ALLOWED_ORIGINS:'https://example.com'}),db).listen(0,'127.0.0.1');await once(server,'listening');
     const base='http://127.0.0.1:'+server.address().port+'/api';
     const query=new URLSearchParams({category:slug,region:slug,age:'6',need:slug,limit:'2'});

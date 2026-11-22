@@ -24,6 +24,7 @@ import { carryLanguage, withoutLanguage } from './components/language';
 import ContentLanguageNotice from './i18n/ContentLanguageNotice';
 import ReportProgram from './components/ReportProgram';
 import MatchingSummary from './components/MatchingSummary';
+import RecommendationAssistant from './components/RecommendationAssistant';
 import {matchingContext} from './api/matching';
 import {catalogCategories,categoryName} from './api/categories';
 import {referenceName} from './api/reference-data';
@@ -86,6 +87,7 @@ function Header() {
     }}>
     <NavLink to={target('/')} end>{""+tr("m159")+""}</NavLink>
     <NavLink to={target('/results')}>{""+tr("m160")+""}</NavLink>
+    <NavLink to={target('/ai-assistant')}>{tr('aiTitle')}</NavLink>
     <NavLink to={target('/contact')}>{""+tr("m162")+""}</NavLink>
     <NavLink to={target('/profile')}>{""+tr("m163")+""}</NavLink>
     </nav>
@@ -117,6 +119,7 @@ function Layout() {
     <Routes>
     <Route path="/" element={<Home />}/>
     <Route path="/find" element={<Find key={withoutLanguage(location.search)} />}/>
+    <Route path="/ai-assistant" element={<div className="container ai-page"><RecommendationAssistant /></div>}/>
     <Route path="/results" element={<Results />}/>
     <Route path="/program/:id" element={<Details />}/>
     <Route path="/favorites" element={<Favorites />}/>

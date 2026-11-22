@@ -17,14 +17,20 @@ export interface ContactInput {
   submissionId?: string;
 }
 export interface ReportInput {reason:'incorrect'|'outdated'|'source_broken'|'other';explanation:string|null}
+export interface Recommendations {
+  intent: {age: number|null; region: string|null; need: string|null; category: string|null};
+  data: (Program & {matching: Matching})[];
+}
 export class ApiError extends Error {
   readonly status: number;
-  constructor(status: number, message?: string) {
+  readonly code: string | undefined;
+  constructor(status: number, message?: string, code?: string) {
     super(message ?? (status === 400 ? tr("m145")
       : status === 404 ? tr("m146")
       : status === 429 ? tr("m147")
       : tr("m148")));
     this.status = status;
+    this.code = code;
   }
 }
 export const isProgramId = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
@@ -66,6 +72,18 @@ function parseTaxonomy(value: unknown): Taxonomy {
   const item = record(value);
   return { id: text(item.id), slug: text(item.slug), name: text(item.name) };
 }
+function parseRecommendations(value: unknown): Recommendations {
+  const result = record(value), intent = record(result.intent);
+  const age = intent.age === null ? null : integer(intent.age);
+  const slug = (value: unknown) => value === null ? null :
+    (typeof value === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value) && value.length <= 80 ? value : invalid());
+  if ((age !== null && age > 17) || !Array.isArray(result.data) || result.data.length > 5) return invalid();
+  return {intent: {age, region: slug(intent.region), need: slug(intent.need), category: slug(intent.category ?? null)}, data: result.data.map(value => {
+    const program = parseProgram(value);
+    if (!program.matching || program.matching.status === 'NOT_MATCH') return invalid();
+    return {...program, matching: program.matching};
+  })};
+}
 function parsePage<T>(value: unknown, parse: (item: unknown) => T): Page<T> {
   const result = record(value), pagination = record(result.pagination);
   if (!Array.isArray(result.data)) return invalid();
@@ -84,7 +102,7 @@ function apiBase(value: string): string {
 }
 export function createApi(baseUrl = '/api', fetcher: typeof fetch = globalThis.fetch) {
   const base = apiBase(baseUrl);
-  async function request<T>(path: string, parse: (value: unknown) => T, signal?: AbortSignal, body?: ContactInput|ReportInput): Promise<T> {
+  async function request<T>(path: string, parse: (value: unknown) => T, signal?: AbortSignal, body?: ContactInput|ReportInput|{query: string; consent: true}): Promise<T> {
     const controller = new AbortController();
     const abort = () => controller.abort();
     if (signal?.aborted) abort();
@@ -94,6 +112,10 @@ export function createApi(baseUrl = '/api', fetcher: typeof fetch = globalThis.f
       const response = await fetcher(base + path, { signal: controller.signal, credentials: 'omit', cache: 'no-store',
         method: body ? 'POST' : 'GET', headers: { Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}) },
         ...(body ? { body: JSON.stringify(body) } : {}) });
+      if (path === '/ai/recommendations' && response.status === 503) {
+        const payload = await response.json().catch(() => null);
+        throw new ApiError(503, undefined, payload?.error?.code === 'AI_UNAVAILABLE' ? 'AI_UNAVAILABLE' : undefined);
+      }
       if (!response.ok) throw new ApiError(response.status);
       return parse(await response.json() as unknown);
     } catch (error) {
@@ -102,6 +124,9 @@ export function createApi(baseUrl = '/api', fetcher: typeof fetch = globalThis.f
     } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
   }
   return {
+    recommendations(query: string, signal?: AbortSignal) {
+      return request('/ai/recommendations', parseRecommendations, signal, {query, consent: true});
+    },
     report(id:string,input:ReportInput,signal?:AbortSignal){
       if(!isProgramId(id))return Promise.reject(new ApiError(404));
       return request('/programs/'+encodeURIComponent(id)+'/reports',value=>{if(record(record(value).data).accepted!==true)return invalid();return {accepted:true as const};},signal,input);

@@ -25,6 +25,9 @@ let user=false,admin=false,empty=false,fail=false,noCategories=false,programStat
 let children=[],childSequence=1,childFail=false,childDelay=0,childRecommendationsEmpty=false;
 const childRequests=[];
 let reportState='open',reportVersion=1;
+let aiState='results';
+let releaseAI;
+const aiRequests=[];
 const reportId='77777777-7777-4777-8777-777777777777';
 const adminQueries=[];
 const failures=[];
@@ -54,6 +57,25 @@ const intercept=async event=>{
       else if(method==='PATCH'){children[index]={...c,...input,version:c.version+1};body={data:children[index]};}
       else if(method==='DELETE'&&input.confirm){children.splice(index,1);status=204;}
       else {status=400;body={error:{code:'VALIDATION_ERROR'}};}
+    }
+  }
+  else if(p==='/api/ai/recommendations'){
+    aiRequests.push({method:event.params.request.method,search:url.search,input:JSON.parse(event.params.request.postData)});
+    if(aiState==='results')await new Promise(resolve=>{releaseAI=resolve;});
+    if(aiState==='unavailable'){
+      status=503;body={error:{code:'AI_UNAVAILABLE',message:'DO NOT DISPLAY RAW SERVER MESSAGE'}};
+    }else if(aiState==='error'){
+      status=500;body={error:{message:'DO NOT DISPLAY RAW SERVER MESSAGE'}};
+    }else{
+      const russian=aiRequests.at(-1).input.query.startsWith('Какие пособия');
+      const intent=aiState==='clarify'?{age:null,region:null,need:null,category:null}:
+        russian?{age:0,region:null,need:null,category:'benefits'}:
+          {age:null,region:'almaty-city',need:null,category:'clubs'};
+      const confirmed={...matchedProgram(new URL('?age=7&region=test-region&need=test-need',origin)),category:intent.category};
+      const possible={...confirmed,id:'22222222-2222-4222-8222-222222222222',matching:{
+        status:'POSSIBLE',checks:[{code:'RULES_UNVERIFIED',result:'missing'}],
+      }};
+      body={intent,data:aiState==='results'?[confirmed,possible]:[]};
     }
   }
   else if(p==='/api/auth/session')body={data:session};
@@ -89,7 +111,7 @@ const intercept=async event=>{
 };
 browser.onEvent(event=>{if(event.method==='Fetch.requestPaused')void intercept(event).catch(error=>failures.push(error.message));});
 const routes=[
-  ['/', 'm267'],['/find','m178'],['/results','m195'],['/program/'+id,'SOURCE original title'],['/favorites','m231'],['/contact','m243'],['/not-found','m170'],
+  ['/', 'm267'],['/find','m178'],['/ai-assistant','aiTitle'],['/results','m195'],['/program/'+id,'SOURCE original title'],['/favorites','m231'],['/contact','m243'],['/not-found','m170'],
   ['/login','login'],['/register','register'],['/forgot-password','reset'],['/reset-password','reset'],
   ['/profile','account'],['/profile/saved','savedTitle'],['/profile/children','m335'],
   ['/admin','m012'],['/admin/login','m024'],['/admin/overview','m368'],['/admin/reports','m392'],['/admin/programs','m012'],['/admin/programs/new','m015'],['/admin/programs/'+id,'SOURCE original title'],['/admin/programs/'+id+'/edit','m117'],['/admin/not-found','m020'],
@@ -123,7 +145,7 @@ try{
         await browser.evaluate("document.querySelector('main form').requestSubmit()");
         await browser.until("!!document.querySelector('[role=alert]')");
       }
-      const draftSelector=route==='/find'?'input[name=q]':route==='/admin/programs'?'#admin-search':route==='/results'?'.discovery-search input[name=q]':null;
+      const draftSelector=route==='/find'?'input[name=q]':route==='/ai-assistant'?'.ai-composer textarea':route==='/admin/programs'?'#admin-search':route==='/results'?'.discovery-search input[name=q]':null;
       if(draftSelector)await browser.setValue(draftSelector,'TEST unsent draft');
       // Switch in place, check the same route, then restore. No page reload is used.
       const opposite=language==='kk'?'ru':'kk';
@@ -180,6 +202,73 @@ try{
   for(const language of ['kk','ru']){
     user=false;admin=false;
     await browser.navigate(origin+'/find?lang='+language);await expectPage('m178',language);
+    assert.equal(await browser.evaluate("!!document.querySelector('.recommendation-assistant')"),false);
+    await browser.send('Emulation.setDeviceMetricsOverride',{width:375,height:900,deviceScaleFactor:1,mobile:true});
+    await browser.evaluate("document.querySelector('.mobile-toggle').click()");
+    const navLink='#primary-navigation a[href^="/ai-assistant"]';
+    assert.equal(await browser.evaluate(`document.querySelector(${JSON.stringify(navLink)}).textContent.trim()`),tr('aiTitle',{},language));
+    await browser.evaluate(`document.querySelector(${JSON.stringify(navLink)}).click()`);
+    await expectPage('aiTitle',language);
+    assert.equal(await browser.evaluate("document.querySelector('.mobile-toggle').getAttribute('aria-expanded')"),'false');
+    await browser.send('Emulation.clearDeviceMetricsOverride');
+    await browser.navigate(origin+'/?lang='+language);await expectPage('m267',language);
+    const cta='main a[href^="/ai-assistant"]';
+    assert.equal(await browser.evaluate(`document.querySelector(${JSON.stringify(cta)}).textContent.trim()`),tr('aiSearch',{},language));
+    await browser.evaluate(`document.querySelector(${JSON.stringify(cta)}).click()`);
+    await expectPage('aiTitle',language);
+    await browser.until("location.pathname==='/ai-assistant'");
+    assert.equal(await browser.evaluate("document.querySelector('#primary-navigation a[aria-current=page]').pathname"),'/ai-assistant');
+    assert.equal(await browser.evaluate("!!document.querySelector('.search-form')"),false);
+    assert.ok((await browser.evaluate('document.title')).includes(tr('aiTitle',{},language)));
+    const query=tr('aiPromptSport',{},language);
+    const naturalQuestion=language==='ru'?'Какие пособия доступны для ребенка до года?':'Алматыда тегін үйірмелер бар ма?';
+    await browser.until("!!document.querySelector('.ai-suggestions button')");
+    await browser.evaluate("document.querySelector('.ai-suggestions button').click()");
+    assert.equal(await browser.evaluate("document.querySelector('.recommendation-assistant textarea').value"),query);
+    assert.equal(await browser.evaluate("document.querySelector('.recommendation-assistant button[type=submit]').disabled"),true);
+    await browser.evaluate("document.querySelector('.ai-consent input').click()");
+    const states=[['results','aiResults'],['empty','aiEmpty'],['clarify','aiClarify'],['error','m148'],['unavailable','aiUnavailable']];
+    for(const [index,[state,key]] of states.entries()){
+      aiState=state;
+      const question=state==='clarify'?(language==='ru'?'Алматы или Астана?':'Алматы немесе Астана ма?'):naturalQuestion;
+      await browser.setValue('.recommendation-assistant textarea',question);
+      await browser.evaluate("document.querySelector('.recommendation-assistant form').requestSubmit()");
+      if(state==='results'){
+        for(let attempt=0;!releaseAI&&attempt<100;attempt++)await new Promise(resolve=>setTimeout(resolve,20));
+        await browser.until("!!document.querySelector('.ai-pending')");
+        assert.equal(await browser.evaluate("document.querySelector('.recommendation-assistant button[type=submit]').disabled"),true);
+        assert.equal(typeof releaseAI,'function');
+        releaseAI();
+        releaseAI=undefined;
+      }
+      await browser.until(`document.querySelector('.ai-turn:last-child .ai-reply')?.innerText.includes(${JSON.stringify(tr(key,{},language))})`);
+      assert.deepEqual(aiRequests.at(-1),{method:'POST',search:'',input:{query:question,consent:true}});
+      assert.equal(await browser.evaluate("document.querySelectorAll('.ai-turn').length"),index+1);
+      const source=await browser.evaluate("document.querySelector('.ai-turn:last-child .ai-programs a[rel=noreferrer]')?.getAttribute('href') ?? null");
+      assert.equal(source,state==='results'?'https://example.com/test':null);
+      if(state==='results'){
+        const category=tr(language==='ru'?'m418':'m421',{},language);
+        assert.ok((await browser.evaluate("document.querySelector('.ai-intent').innerText")).includes(category));
+        for(const [status,label] of [['match','m306'],['possible','m307']]){
+          assert.equal(await browser.evaluate(`document.querySelector('.ai-programs .matching-${status} strong').textContent`),tr(label,{},language));
+        }
+        assert.equal(await browser.evaluate("document.querySelector('.ai-programs li:has(.matching-possible) > p')"),null);
+        if(language==='kk')assert.ok((await browser.evaluate("document.querySelector('.ai-reply:has(.ai-programs)').innerText")).includes(tr('aiClubFees',{},language)));
+      }
+    }
+    assert.equal(await browser.evaluate("document.querySelector('.ai-programs a[href^=\"/program/\"]').pathname"),'/program/'+id);
+    assert.equal(await browser.evaluate("!!document.querySelector('.ai-programs .matching-summary details[open]')"),true);
+    for(const width of [320,375,768,1024,1440]){
+      await browser.send('Emulation.setDeviceMetricsOverride',{width,height:1000,deviceScaleFactor:1,mobile:width<760});
+      assert.equal(await browser.evaluate('document.documentElement.scrollWidth>innerWidth'),false,'chat fits '+width);
+    }
+    await browser.send('Emulation.clearDeviceMetricsOverride');
+    assert.equal(await browser.evaluate("document.body.innerText.includes('DO NOT DISPLAY RAW SERVER MESSAGE')"),false);
+    await browser.evaluate("document.querySelector('.ai-turn:last-child .ai-reply a').click()");
+    await expectPage('m178',language);
+    assert.equal(await browser.evaluate('location.pathname'),'/find');
+    assert.equal(await browser.evaluate("!!document.querySelector('.recommendation-assistant')"),false);
+    count++;console.log('PASS '+count+': '+language+' chat suggestions, consent, history, sourced matches, errors and manual fallback');
     await browser.until("!!document.querySelector('select[name=need] option[value=\"test-need\"]')");
     await browser.setValue('input[name=age]','6');await browser.setValue('select[name=region]','test-region');await browser.setValue('select[name=category]','test-support');await browser.setValue('select[name=need]','test-need');
     await browser.evaluate("document.querySelector('.search-form').requestSubmit()");

@@ -8,8 +8,12 @@ import { HttpError } from '../middleware/errors.ts';
 import {matchingQuery,matchingDetailsQuery} from './schemas.ts';
 import {findMatches} from '../matching/repository.ts';
 import {reportBody} from './schemas.ts';
+import {z} from 'zod';
+import {extractIntent} from '../ai/intent.ts';
 
-export function apiRouter(database?: Database) {
+const recommendationBody = z.strictObject({query: z.string().trim().min(1).max(400), consent: z.literal(true)});
+
+export function apiRouter(reviewDays: number, database?: Database) {
   const router = Router();
   const repository = () => {
     if (!database) throw new HttpError(503, 'SERVICE_UNAVAILABLE', 'Database service is unavailable.');
@@ -19,6 +23,26 @@ export function apiRouter(database?: Database) {
     response.setHeader('Allow', allow);
     next(new HttpError(405, 'METHOD_NOT_ALLOWED', 'Method is not allowed.'));
   };
+  const aiLimit = rateLimit({
+    windowMs: 60_000, limit: 6, standardHeaders: 'draft-8', legacyHeaders: false,
+    handler: (_request, _response, next) => next(new HttpError(429, 'RATE_LIMITED', 'Too many requests.')),
+  });
+  router.route('/ai/recommendations').post(aiLimit, async (request, response) => {
+    validate(emptyInput, request.query);
+    if (!request.is('application/json')) throw new HttpError(415, 'UNSUPPORTED_MEDIA_TYPE', 'Expected application/json.');
+    const {query} = validate(recommendationBody, request.body);
+    const intent = extractIntent(query);
+    if (Object.values(intent).every(value => value === null)) {
+      response.json({intent, data: []});
+      return;
+    }
+    if (!database) throw new HttpError(503, 'AI_UNAVAILABLE', 'Catalog search is unavailable.');
+    const {data} = await findMatches(database, {
+      age: intent.age ?? undefined, region: intent.region ?? undefined, need: intent.need ?? undefined,
+      category: intent.category ?? undefined, page: 1, limit: 5, recommendationReviewDays: reviewDays,
+    });
+    response.json({intent, data});
+  }).all(methods('POST, OPTIONS'));
   router.route('/programs').get(async (request, response) => {
     const filters = validate(programQuery, request.query);
     response.json(await repository().programs(filters));
