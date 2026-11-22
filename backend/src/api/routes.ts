@@ -9,7 +9,7 @@ import {matchingQuery,matchingDetailsQuery} from './schemas.ts';
 import {findMatches} from '../matching/repository.ts';
 import {reportBody} from './schemas.ts';
 import {z} from 'zod';
-import {extractIntent} from '../ai/intent.ts';
+import {resolveRecommendationIntent} from '../ai/classifier.ts';
 
 const recommendationBody = z.strictObject({query: z.string().trim().min(1).max(400), consent: z.literal(true)});
 
@@ -31,7 +31,8 @@ export function apiRouter(reviewDays: number, database?: Database) {
     validate(emptyInput, request.query);
     if (!request.is('application/json')) throw new HttpError(415, 'UNSUPPORTED_MEDIA_TYPE', 'Expected application/json.');
     const {query} = validate(recommendationBody, request.body);
-    const intent = extractIntent(query);
+    const {intent, mode} = resolveRecommendationIntent(query);
+    response.setHeader('X-Recommendation-Mode', mode);
     if (Object.values(intent).every(value => value === null)) {
       response.json({intent, data: []});
       return;

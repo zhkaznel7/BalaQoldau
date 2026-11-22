@@ -63,6 +63,10 @@ jobs:
           npm run lint --prefix backend
           npm run typecheck --prefix backend
           npm test --prefix backend
+      - name: Evaluate bilingual assistant against the rules baseline
+        run: |
+          node backend/tests/ai-evaluate.mjs
+          node backend/tests/ai-model-evaluate.mjs
       - name: Migrate isolated CI database twice
         working-directory: backend
         env:

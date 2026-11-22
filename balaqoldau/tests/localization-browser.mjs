@@ -220,6 +220,8 @@ try{
     assert.equal(await browser.evaluate("document.querySelector('#primary-navigation a[aria-current=page]').pathname"),'/ai-assistant');
     assert.equal(await browser.evaluate("!!document.querySelector('.search-form')"),false);
     assert.ok((await browser.evaluate('document.title')).includes(tr('aiTitle',{},language)));
+    assert.equal(await browser.evaluate("document.querySelector('#ai-privacy').textContent"),tr('aiPrivacy',{},language));
+    assert.ok(tr('aiPrivacy',{},language).includes(language==='kk'?'машиналық оқыту':'машинного обучения'));
     const query=tr('aiPromptSport',{},language);
     const naturalQuestion=language==='ru'?'Какие пособия доступны для ребенка до года?':'Алматыда тегін үйірмелер бар ма?';
     await browser.until("!!document.querySelector('.ai-suggestions button')");
