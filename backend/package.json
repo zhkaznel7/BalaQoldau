@@ -1,0 +1,38 @@
+{
+  "name": "balaqoldau-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.7.0"
+  },
+  "scripts": {
+    "dev": "node --env-file=.env --watch --experimental-strip-types src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "node ../balaqoldau/node_modules/eslint/bin/eslint.js --config ../balaqoldau/eslint.backend.config.js src",
+    "start": "node --env-file-if-exists=.env dist/server.js",
+    "test": "npm run build && node --test tests/*.test.mjs",
+    "db:migrate": "node --env-file-if-exists=.env dist/db/cli.js migrate",
+    "db:seed": "node --env-file-if-exists=.env dist/db/cli.js seed",
+    "contact:cleanup": "node --env-file-if-exists=.env dist/retention/cli.js",
+    "test:db": "npm run build && node --env-file-if-exists=.env --test --test-concurrency=1 tests/integration/*.test.mjs",
+    "test:user-db": "npm run build && node --env-file-if-exists=.env --test --test-concurrency=1 tests/users/*.test.mjs",
+    "admin:create": "node --env-file-if-exists=.env dist/admin/provision.js --create"
+  },
+  "dependencies": {
+    "cors": "2.8.6",
+    "express": "5.3.0",
+    "express-rate-limit": "8.7.4",
+    "helmet": "8.3.0",
+    "pg": "8.23.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/cors": "2.8.19",
+    "@types/express": "5.0.6",
+    "@types/node": "24.19.2",
+    "@types/pg": "8.23.1",
+    "typescript": "5.9.3"
+  }
+}
