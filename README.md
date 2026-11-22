@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="balaqoldau/public/balaqoldau.svg" width="72" height="72" alt="BalaQoldau logo">
+  <img src="./balaqoldau/public/balaqoldau.svg" width="72" height="72" alt="BalaQoldau logo" />
 </p>
 
 <h1 align="center">BalaQoldau</h1>
@@ -29,6 +29,8 @@
 ---
 
 ## About BalaQoldau
+
+**Қазақша.** BalaQoldau Қазақстандағы ата-аналар мен қамқоршыларға балаларға арналған жәрдемақыларды, гранттарды, тегін курстар мен үйірмелерді бір жерден табуға көмектеседі. Баланың жасы мен өңірі бойынша іздеп, қатысу шарттарын ресми дереккөзден тексеруге болады.
 
 Families in Kazakhstan may need to check several government and program websites to find support, decode eligibility rules, and locate the right application page. BalaQoldau gives parents and caregivers one place to discover government benefits, grants, free courses, and children's activities, then follow the official source for the next step. The platform is independent. Program providers make eligibility and application decisions.
 
@@ -98,10 +100,15 @@ Use **Node.js 24.7 or newer**, npm, and **PostgreSQL 15 or newer**. Run the comm
    npm run db:migrate --prefix backend
    ```
 
-4. Start the backend and frontend in separate terminals.
+4. Start the backend in the first terminal.
 
    ```bash
    npm run dev --prefix backend
+   ```
+
+   Start the frontend in a second terminal.
+
+   ```bash
    npm run dev --prefix balaqoldau
    ```
 
@@ -132,13 +139,21 @@ Use **Node.js 24.7 or newer**, npm, and **PostgreSQL 15 or newer**. Run the comm
 
 ## Documentation
 
-| Area | Guides |
-| --- | --- |
-| **Development** | [Frontend and browser QA](balaqoldau/README.md) · [Backend setup](backend/README.md) · [Program API](backend/PROGRAM_API.md) |
-| **Discovery** | [Catalog assistant](docs/AI_RECOMMENDATIONS.md) · [Eligibility matching](docs/MATCHING.md) · [Localization](docs/LOCALIZATION.md) |
-| **Catalog operations** | [Verification workflow](backend/VERIFICATION.md) · [Reference data](backend/REFERENCE_DATA.md) · [Program data checklist](PROGRAM_DATA_CHECKLIST.md) |
-| **Accounts and support** | [User authentication](backend/USER_AUTH.md) · [Profiles and saved programs](backend/USER_PROFILE.md) · [Child profiles](backend/CHILD_PROFILES.md) · [Contact API](backend/CONTACT_API.md) |
-| **Release and security** | [Deployment](docs/DEPLOYMENT.md) · [Security](docs/SECURITY.md) · [Contact retention](docs/CONTACT_RETENTION.md) · [Release checklist](docs/RELEASE_CHECKLIST.md) |
+- **Development**
+
+  [Frontend and browser QA](balaqoldau/README.md) · [Backend setup](backend/README.md) · [Program API](backend/PROGRAM_API.md)
+- **Discovery**
+
+  [Catalog assistant](docs/AI_RECOMMENDATIONS.md) · [Eligibility matching](docs/MATCHING.md) · [Localization](docs/LOCALIZATION.md)
+- **Catalog operations**
+
+  [Verification workflow](backend/VERIFICATION.md) · [Reference data](backend/REFERENCE_DATA.md) · [Program data checklist](PROGRAM_DATA_CHECKLIST.md)
+- **Accounts and support**
+
+  [User authentication](backend/USER_AUTH.md) · [Profiles and saved programs](backend/USER_PROFILE.md) · [Child profiles](backend/CHILD_PROFILES.md) · [Contact API](backend/CONTACT_API.md)
+- **Release and security**
+
+  [Deployment](docs/DEPLOYMENT.md) · [Security](docs/SECURITY.md) · [Contact retention](docs/CONTACT_RETENTION.md) · [Release checklist](docs/RELEASE_CHECKLIST.md)
 
 ## Team
 
