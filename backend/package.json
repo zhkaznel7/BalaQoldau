@@ -15,6 +15,7 @@
     "test": "npm run build && node --test tests/*.test.mjs",
     "db:migrate": "node --env-file-if-exists=.env dist/db/cli.js migrate",
     "db:seed": "node --env-file-if-exists=.env dist/db/cli.js seed",
+    "db:seed:judge": "node --env-file-if-exists=.env dist/db/cli.js seed:judge",
     "contact:cleanup": "node --env-file-if-exists=.env dist/retention/cli.js",
     "test:db": "npm run build && node --env-file-if-exists=.env --test --test-concurrency=1 tests/integration/*.test.mjs",
     "test:user-db": "npm run build && node --env-file-if-exists=.env --test --test-concurrency=1 tests/users/*.test.mjs",

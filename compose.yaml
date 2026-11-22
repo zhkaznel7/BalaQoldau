@@ -1,0 +1,55 @@
+name: balaqoldau-judge
+services:
+  judge-db:
+    image: postgres:18.6
+    environment:
+      POSTGRES_USER: balaqoldau_judge
+      POSTGRES_DB: balaqoldau_judge
+      # The disposable judge database is reachable only on the private database network.
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - judge-data:/var/lib/postgresql
+      - ./deploy/judge-db-init.sql:/docker-entrypoint-initdb.d/01-judge-marker.sql:ro
+    networks: [judge-data]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "balaqoldau_judge", "-d", "balaqoldau_judge"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  api:
+    build:
+      context: .
+      target: api
+    environment:
+      NODE_ENV: development
+      HOST: 0.0.0.0
+      PORT: "3001"
+      DATABASE_URL: postgresql://balaqoldau_judge@judge-db:5432/balaqoldau_judge
+      DB_SSL_MODE: disable
+      CORS_ALLOWED_ORIGINS: "http://localhost:${JUDGE_WEB_PORT:-8080},http://127.0.0.1:${JUDGE_WEB_PORT:-8080}"
+    depends_on:
+      judge-db:
+        condition: service_healthy
+    command: ["sh", "-ec", "node dist/db/cli.js migrate && exec node dist/server.js"]
+    networks: [default, judge-data]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/ready').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 3s
+      timeout: 4s
+      retries: 25
+  web:
+    build:
+      context: .
+      target: web
+    depends_on:
+      api:
+        condition: service_healthy
+        restart: true
+    ports:
+      - "127.0.0.1:${JUDGE_WEB_PORT:-8080}:80"
+
+networks:
+  judge-data:
+    internal: true
+volumes:
+  judge-data:
