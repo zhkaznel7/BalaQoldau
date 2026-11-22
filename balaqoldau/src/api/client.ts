@@ -22,7 +22,9 @@ export interface ContactInput {
 export interface ReportInput {reason:'incorrect'|'outdated'|'source_broken'|'other';explanation:string|null}
 export interface Recommendations {
   intent: RecommendationIntent;
-  followUp?: 'category'|'region'|'age'|'clarify'|null;
+  followUp?: 'category'|'region'|'age'|'need'|'clarify'|null;
+  provider?: 'openai'|'unavailable';
+  style?: 'direct'|'warm';
   data: (Program & {matching: Matching})[];
 }
 export type RecommendationIntent = {age: number|null; region: string|null; need: string|null; category: string|null};
@@ -91,8 +93,12 @@ function parseRecommendations(value: unknown): Recommendations {
   if ((age !== null && age > 17) || !Array.isArray(result.data) || result.data.length > 5) return invalid();
   const followUp=result.followUp,category=intent.category??null;
   if(category!==null&&!isPublicCategory(category))return invalid();
-  if (followUp!==undefined&&followUp!==null&&followUp!=='category'&&followUp!=='region'&&followUp!=='age'&&followUp!=='clarify') return invalid();
+  if (followUp!==undefined&&followUp!==null&&followUp!=='category'&&followUp!=='region'&&followUp!=='age'&&followUp!=='need'&&followUp!=='clarify') return invalid();
+  const {provider,style}=result;
+  if (provider!==undefined&&provider!=='openai'&&provider!=='unavailable') return invalid();
+  if (style!==undefined&&style!=='direct'&&style!=='warm') return invalid();
   return {intent: {age, region: slug(intent.region), need: slug(intent.need), category},
+    ...(provider===undefined?{}:{provider}), ...(style===undefined?{}:{style}),
     ...(followUp===undefined?{}:{followUp}),data: result.data.map(value => {
     const program = parseProgram(value);
     if (!program.matching || program.matching.status === 'NOT_MATCH') return invalid();
@@ -126,7 +132,7 @@ function apiBase(value: string): string {
 }
 export function createApi(baseUrl = '/api', fetcher: typeof fetch = globalThis.fetch) {
   const base = apiBase(baseUrl);
-  async function request<T>(path: string, parse: (value: unknown) => T, signal?: AbortSignal, body?: ContactInput|ReportInput|{query: string; consent: true; context:RecommendationIntent|null|undefined}): Promise<T> {
+  async function request<T>(path: string, parse: (value: unknown) => T, signal?: AbortSignal, body?: ContactInput|ReportInput|{query: string; consent: true; context:RecommendationIntent|null|undefined; openAIConsent?: true}): Promise<T> {
     const controller = new AbortController();
     const abort = () => controller.abort();
     if (signal?.aborted) abort();
@@ -148,8 +154,9 @@ export function createApi(baseUrl = '/api', fetcher: typeof fetch = globalThis.f
     } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
   }
   return {
-    recommendations(query: string, signal?: AbortSignal, context?: RecommendationIntent|null) {
-      return request('/ai/recommendations', parseRecommendations, signal, {query, consent: true, context});
+    recommendations(query: string, signal?: AbortSignal, context?: RecommendationIntent|null, openAIConsent = false) {
+      return request('/ai/recommendations', parseRecommendations, signal, {query, consent: true, context,
+        ...(openAIConsent ? {openAIConsent: true} : {})});
     },
     suggestions(signal?:AbortSignal) {return request('/ai/suggestions',parseSuggestions,signal);},
     report(id:string,input:ReportInput,signal?:AbortSignal){

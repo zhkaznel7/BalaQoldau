@@ -68,11 +68,36 @@ function labelFor<K extends string>(labels: Record<K, RegExp>, word: string): K 
   return (Object.keys(labels) as K[]).find(key => labels[key].test(word));
 }
 
-export function parseIntentRules(query: string): Intent | null {
-  const words = query.normalize('NFC').toLowerCase()
+function intentWords(query: string) {
+  return query.normalize('NFC').toLowerCase()
     .replace(/\S+@\S+|(?:https?:\/\/|www\.)\S+/gu, ' ')
     .replace(/(\d)\s*([-–—])\s*(?=\d)/gu, '$1$2')
     .match(/[\p{L}\p{M}]+|[+−-]?\d+(?:[.,/–—:-]\d+)*/gu) ?? [];
+}
+
+export function providerCues(query: string) {
+  const words = intentWords(query);
+  const cues: {field: keyof Intent | 'relation'; value: string | number}[] = [];
+  for (let index = 0; index < words.length; index++) {
+    const word = words[index]!;
+    const phrase = regionAliases.get(word + ' ' + words[index + 1]);
+    const age = readAge(words, index);
+    const region = phrase ?? regionAliases.get(word);
+    const category = labelFor(categories, word);
+    const need = labelFor(needs, word);
+    if (age !== undefined && Number.isInteger(age)) cues.push({field: 'age', value: age});
+    if (region) cues.push({field: 'region', value: region});
+    if (category) cues.push({field: 'category', value: category});
+    if (need) cues.push({field: 'need', value: need});
+    if (exclusions.has(word)) cues.push({field: 'relation', value: 'exclude'});
+    if (conjunctions.has(word)) cues.push({field: 'relation', value: 'multiple'});
+    if (phrase) index++;
+  }
+  return cues.slice(0, 24);
+}
+
+export function parseIntentRules(query: string): Intent | null {
+  const words = intentWords(query);
   const ages = new Set<number>();
   const locations = new Set<keyof typeof regions>();
   const support = new Set<keyof typeof needs>();

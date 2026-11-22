@@ -21,6 +21,10 @@ export function nextQuestion(intent: Intent) {
 export function conversationIntent(query: string, context: Intent | null | undefined) {
   const result = resolveRecommendationIntent(query);
   if (context === undefined) return {...result, followUp: undefined};
+  if (context?.category === 'clubs' && nextQuestion(context) === null &&
+      /^(?:басқа|кез келген|любой|любая|другое)[.!]?$/iu.test(query)) {
+    return {...result, intent: context, followUp: null};
+  }
   const parsed = parseIntentRules(query);
   if (!parsed || (!parsed.category && hasUnresolvedCategoryConstraint(query))) {
     return {...result, intent: context ?? clarification, followUp: 'clarify' as const};

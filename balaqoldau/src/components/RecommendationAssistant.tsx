@@ -29,10 +29,11 @@ function RecommendationReply({reply}: {reply: Reply}) {
     <ManualSearchLink/>
   </>;
 
-  const {intent, data, followUp} = reply.result;
+  const {intent, data, followUp, provider, style} = reply.result;
   const recognized = Object.values(intent).some(value => value !== null);
   return <>
-    <p>{tr(followUp ? {category:'aiAskCategory',region:'aiAskRegion',age:'aiAskAge',clarify:'aiClarify'}[followUp]
+    {provider === 'unavailable' && <p className="field-hint">{tr('aiLocalFallback')}</p>}
+    <p>{style === 'warm' && <>{tr('aiAcknowledge')}{' '}</>}{tr(followUp ? {category:'aiAskCategory',region:'aiAskRegion',age:'aiAskAge',need:'aiAskActivity',clarify:'aiClarify'}[followUp]
       : data.length ? 'aiResults' : recognized ? 'aiEmpty' : 'aiClarify')}</p>
     {!!data.length && intent.category === 'clubs' && <p>{tr('aiClubFees')}</p>}
     {recognized && <dl className="ai-intent">
@@ -54,7 +55,7 @@ function RecommendationReply({reply}: {reply: Reply}) {
         <p lang={content.fallback ? 'kk' : undefined}>{programExcerpt(content.description)}</p>
         {!program.matching.checks.some(check => check.code === 'RULES_UNVERIFIED') &&
           <p>{tr('aiAgeRange', {0: program.ageMin, 1: program.ageMax})}</p>}
-        <MatchingSummary matching={program.matching} expanded/>
+        <MatchingSummary matching={program.matching}/>
         <p>{tr('aiNextStep')}</p>
         <div className="ai-program-links">
           <a href={program.sourceUrl} rel="noreferrer">{tr('aiSource')} · {program.sourceName}</a>
@@ -70,6 +71,7 @@ export default function RecommendationAssistant() {
   useUi();
   const [query, setQuery] = useState('');
   const [consent, setConsent] = useState(false);
+  const [openAIConsent, setOpenAIConsent] = useState(false);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [suggestions, setSuggestions] = useState<RecommendationSuggestion[]>([]);
   const [selectedSuggestion, setSelectedSuggestion] = useState<RecommendationSuggestion|null>(null);
@@ -113,7 +115,7 @@ export default function RecommendationAssistant() {
 
     let reply: Reply;
     try {
-      reply = {result: await api.recommendations(question, request.signal, context)};
+      reply = {result: await api.recommendations(question, request.signal, context, openAIConsent)};
     } catch (failure) {
       reply = {error: failure instanceof ApiError && failure.code === 'AI_UNAVAILABLE' ? 'aiUnavailable'
         : failure instanceof ApiError && failure.status === 429 ? 'm147' : 'm148'};
@@ -136,7 +138,7 @@ export default function RecommendationAssistant() {
       <h1 id="ai-assistant-title">{tr('aiTitle')}</h1>
       <ManualSearchLink/>
       {turns.length>0 && <button className="button" type="button" disabled={pending} onClick={()=>{
-        setTurns([]);setQuery('');setSelectedSuggestion(null);input.current?.focus();
+        setTurns([]);setQuery('');setSelectedSuggestion(null);setOpenAIConsent(false);input.current?.focus();
       }}>{tr('aiNewSearch')}</button>}
     </header>
     <div ref={transcript} className="ai-transcript" tabIndex={0} role="log" aria-relevant="additions text" aria-labelledby="ai-assistant-title">
@@ -146,7 +148,7 @@ export default function RecommendationAssistant() {
         <div className="ai-reply">
           <strong>{tr('aiTitle')}</strong>
           {turn.reply ? <RecommendationReply reply={turn.reply}/> :
-            <p className="ai-pending"><span aria-hidden="true"/>{tr('aiPending')}</p>}
+            <p className="ai-pending" role="status"><span aria-hidden="true"/>{tr('aiPending')}</p>}
         </div>
       </div>)}
     </div>
@@ -159,16 +161,20 @@ export default function RecommendationAssistant() {
         }}>{text}</button>)}
       </div>
       <div className="ai-input-row">
-        <label className="field"><span>{tr('aiQuery')}</span>
-          <textarea ref={input} required maxLength={400} rows={2} value={query}
+        <label className="field"><span className="sr-only">{tr('aiQuery')}</span>
+          <textarea ref={input} required maxLength={400} rows={1} value={query}
             placeholder={tr('aiExample')} aria-describedby="ai-privacy" onChange={event => {setQuery(event.target.value);setSelectedSuggestion(null);}}/>
         </label>
-        <button type="submit" className="button primary" disabled={pending || !consent || !query.trim()}>
-          <Send aria-hidden="true" size={17}/>{tr('aiSend')}
+        <button type="submit" className="button primary" aria-label={tr('aiSend')} disabled={pending || !consent || !query.trim()}>
+          <Send aria-hidden="true" size={17}/><span className="ai-send-label">{tr('aiSend')}</span>
         </button>
       </div>
-      <label className="ai-consent"><input type="checkbox" required checked={consent}
-        onChange={event => setConsent(event.target.checked)}/>{tr('aiConsent')}</label>
+      <div className="ai-consents">
+        <label className="ai-consent"><input type="checkbox" required checked={consent}
+          onChange={event => setConsent(event.target.checked)}/>{tr('aiConsent')}</label>
+        <label className="ai-consent"><input type="checkbox" checked={openAIConsent}
+          onChange={event => setOpenAIConsent(event.target.checked)}/>{tr('aiOpenAIConsent')}</label>
+      </div>
       <p id="ai-privacy" className="field-hint">{tr('aiPrivacy')}</p>
     </form>
   </section>;

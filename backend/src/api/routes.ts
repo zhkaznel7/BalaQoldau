@@ -9,13 +9,15 @@ import {matchingQuery,matchingDetailsQuery} from './schemas.ts';
 import {findMatches} from '../matching/repository.ts';
 import {reportBody} from './schemas.ts';
 import {z} from 'zod';
-import {conversationContext, conversationIntent} from '../ai/conversation.ts';
+import {conversationContext, conversationIntent, nextQuestion} from '../ai/conversation.ts';
+import {clarification, providerCues} from '../ai/intent.ts';
+import type {OpenAIInterpreter} from '../ai/openai.ts';
 import {recommendationSuggestions} from '../matching/repository.ts';
 
 const recommendationBody = z.strictObject({query: z.string().trim().min(1).max(400), consent: z.literal(true),
-  context: conversationContext.nullable().optional()});
+  context: conversationContext.nullable().optional(), openAIConsent: z.boolean().optional()});
 
-export function apiRouter(reviewDays: number, database?: Database) {
+export function apiRouter(reviewDays: number, database?: Database, interpreter?: OpenAIInterpreter, developmentDiagnostics = false) {
   const router = Router();
   const repository = () => {
     if (!database) throw new HttpError(503, 'SERVICE_UNAVAILABLE', 'Database service is unavailable.');
@@ -36,11 +38,58 @@ export function apiRouter(reviewDays: number, database?: Database) {
   router.route('/ai/recommendations').post(aiLimit, async (request, response) => {
     validate(emptyInput, request.query);
     if (!request.is('application/json')) throw new HttpError(415, 'UNSUPPORTED_MEDIA_TYPE', 'Expected application/json.');
-    const {query, context} = validate(recommendationBody, request.body);
-    const {intent, mode, followUp} = conversationIntent(query, context);
-    response.setHeader('X-Recommendation-Mode', mode);
+    const {query, context, openAIConsent} = validate(recommendationBody, request.body);
+    const local = conversationIntent(query, context);
+    let {intent} = local;
+    let followUp: typeof local.followUp | 'need' = local.followUp;
+    let provider: 'openai' | 'unavailable' | undefined;
+    let style: 'direct' | 'warm' | undefined;
+    let diagnostic = openAIConsent ? 'skipped-deterministic' : 'skipped-no-consent';
+    if (openAIConsent && !interpreter) {
+      provider = 'unavailable';
+      diagnostic = 'fallback-unconfigured';
+    }
+    const askAboutClub = intent.category === 'clubs' && !intent.need && !context;
+    if (openAIConsent && interpreter && (followUp || askAboutClub || local.mode === 'clarification')) {
+      const cues = providerCues(query);
+      diagnostic = 'skipped-no-cues';
+      if (cues.some(cue => cue.field !== 'relation')) {
+        const controller = new AbortController();
+        const cancel = () => controller.abort();
+        response.once('close', cancel);
+        try {
+          const reply = await interpreter(cues, controller.signal);
+          const current = local.followUp === 'clarify' ? clarification : intent;
+          const updated = {
+            age: current.age ?? reply.intent.age ?? context?.age ?? null,
+            region: current.region ?? reply.intent.region ?? context?.region ?? null,
+            category: current.category ?? reply.intent.category ?? context?.category ?? null,
+            need: current.need ?? reply.intent.need ?? context?.need ?? null,
+          };
+          // Keep ambiguous local turns in clarification when the model found no usable cues.
+          if (local.followUp !== 'clarify' || Object.values(reply.intent).some(value => value !== null)) {
+            intent = updated;
+            followUp = context === undefined ? undefined : nextQuestion(intent);
+            if (context === null && !followUp && intent.category === 'clubs' && !intent.need && reply.askActivity) followUp = 'need';
+          }
+          provider = 'openai';
+          diagnostic = 'openai';
+          style = reply.style;
+        } catch (error) {
+          provider = 'unavailable';
+          const status = error instanceof Error && 'status' in error ? error.status : undefined;
+          diagnostic = status === 401 || status === 403 ? 'fallback-auth'
+            : status === 429 ? 'fallback-quota-or-rate-limit' : 'fallback-error';
+        } finally {
+          response.off('close', cancel);
+        }
+        if (response.destroyed) return;
+      }
+    }
+    response.setHeader('X-Recommendation-Mode', provider === 'openai' ? 'openai' : local.mode);
+    if (developmentDiagnostics) response.setHeader('X-Recommendation-Provider', diagnostic);
     if (followUp || Object.values(intent).every(value => value === null)) {
-      response.json({intent, data: [], followUp});
+      response.json({intent, data: [], followUp, provider, style});
       return;
     }
     if (!database) throw new HttpError(503, 'AI_UNAVAILABLE', 'Catalog search is unavailable.');
@@ -48,7 +97,7 @@ export function apiRouter(reviewDays: number, database?: Database) {
       age: intent.age ?? undefined, region: intent.region ?? undefined, need: intent.need ?? undefined,
       category: intent.category ?? undefined, page: 1, limit: 5, recommendationReviewDays: reviewDays,
     });
-    response.json({intent, data, followUp});
+    response.json({intent, data, followUp, provider, style});
   }).all(methods('POST, OPTIONS'));
   router.route('/programs').get(async (request, response) => {
     const filters = validate(programQuery, request.query);

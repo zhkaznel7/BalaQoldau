@@ -25,6 +25,8 @@ const environmentSchema = z.object({
   RATE_LIMIT_WINDOW_MS: integer('60000', 2147483647),
   RATE_LIMIT_MAX: integer('100', 100000),
   PROGRAM_REVIEW_DAYS: integer('180',730).refine(value=>value>=7),
+  OPENAI_API_KEY: z.string().trim().max(512).transform(value => value || undefined).optional(),
+  OPENAI_MODEL: z.string().regex(/^[a-zA-Z0-9._:-]{1,100}$/).default('gpt-5.4-nano'),
   DATABASE_URL: databaseUrlSchema.optional(),
   ADMIN_ENABLED: z.enum(['true', 'false']).default('false').transform(value => value === 'true'),
   ADMIN_ORIGIN: origin.optional(),

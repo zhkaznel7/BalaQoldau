@@ -68,6 +68,10 @@ const intercept=async event=>{
       status=503;body={error:{code:'AI_UNAVAILABLE',message:'DO NOT DISPLAY RAW SERVER MESSAGE'}};
     }else if(aiState==='error'){
       status=500;body={error:{message:'DO NOT DISPLAY RAW SERVER MESSAGE'}};
+    }else if(aiState==='provider'){
+      body={intent:{category:'clubs',age:7,region:'astana',need:null},data:[],followUp:'need',provider:'openai',style:'warm'};
+    }else if(aiState==='providerFallback'){
+      body={intent:{category:'clubs',age:7,region:'astana',need:'sports-activities'},data:[],followUp:null,provider:'unavailable'};
     }else if(aiState==='followUp'){
       const input=aiRequests.at(-1).input;
       const intent={category:'clubs',age:input.query==='8'?8:7,region:input.context?.region??null,need:null};
@@ -280,6 +284,8 @@ try{
       }
     }
     assert.equal(await browser.evaluate("document.querySelector('.ai-programs a[href^=\"/program/\"]').pathname"),'/program/'+id);
+    assert.equal(await browser.evaluate("!!document.querySelector('.ai-programs .matching-summary details[open]')"),false);
+    await browser.evaluate("document.querySelector('.ai-programs .matching-summary summary').click()");
     assert.equal(await browser.evaluate("!!document.querySelector('.ai-programs .matching-summary details[open]')"),true);
     for(const width of [320,375,768,1024,1440]){
       await browser.send('Emulation.setDeviceMetricsOverride',{width,height:1000,deviceScaleFactor:1,mobile:width<760});
@@ -316,6 +322,11 @@ try{
   program.translationRu={title:'Название программы RU',description:'Описание программы RU'};
   for(const language of ['kk','ru']){
     await browser.navigate(origin+'/ai-assistant?lang='+language);await expectPage('aiTitle',language);
+    assert.equal(await browser.evaluate("getComputedStyle(document.querySelector('.ai-composer')).position"),'sticky');
+    assert.equal(await browser.evaluate("document.querySelector('.ai-consent + .ai-consent input').checked"),false);
+    const inputHeight=await browser.evaluate("document.querySelector('.ai-composer textarea').offsetHeight");
+    await browser.setValue('.ai-composer textarea','TEST\nTEST\nTEST');
+    assert.ok((await browser.evaluate("document.querySelector('.ai-composer textarea').offsetHeight"))>inputHeight);
     const suggestion=tr('aiCatalogPrompt',{0:tr('m421',{},language),1:7,2:tr('m439',{},language)},language);
     await browser.until(`document.querySelector('.ai-suggestions button')?.textContent===${JSON.stringify(suggestion)}`);
     await browser.button(suggestion);
@@ -330,12 +341,23 @@ try{
     await browser.evaluate("document.querySelector('form.ai-composer').requestSubmit()");
     await browser.until("document.querySelectorAll('.ai-turn .ai-intent').length===2");
     assert.deepEqual(aiRequests.at(-1).input.context,expectedContext);
+    assert.equal(aiRequests.at(-1).input.openAIConsent,undefined);
+    aiState='provider';
+    await browser.evaluate("document.querySelectorAll('.ai-consent input')[1].click()");
+    await browser.setValue('.ai-composer textarea',suggestion);
+    await browser.evaluate("document.querySelector('form.ai-composer').requestSubmit()");
+    await browser.until(`document.querySelector('.ai-turn:last-child .ai-reply').innerText.includes(${JSON.stringify(tr('aiAskActivity',{},language))})`);
+    assert.equal(aiRequests.at(-1).input.openAIConsent,true);
+    aiState='providerFallback';
+    await browser.setValue('.ai-composer textarea','спорт');
+    await browser.evaluate("document.querySelector('form.ai-composer').requestSubmit()");
+    await browser.until(`document.querySelector('.ai-turn:last-child .ai-reply').innerText.includes(${JSON.stringify(tr('aiLocalFallback',{},language))})`);
     await browser.navigate(origin+'/program/'+id+'?lang='+language);
     await expectPage(language==='ru'?'Название программы RU':'SOURCE original title',language);
     const description=language==='ru'?'Описание программы RU':'SOURCE original description';
     assert.ok((await browser.evaluate("document.querySelector('.details-content').innerText")).includes(description));
     assert.equal(await browser.evaluate("document.querySelector('.details-content a').getAttribute('href')"),program.sourceUrl);
-    count++;console.log('PASS '+count+': '+language+' catalog-derived suggestion and localized program details');
+    count++;console.log('PASS '+count+': '+language+' provider opt-in, activity clarification, fallback and localized program details');
   }
   catalogSuggestions=false;
   delete program.translationRu;

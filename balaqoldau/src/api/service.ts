@@ -3,7 +3,8 @@ import type { ContactInput,ReportInput,RecommendationIntent } from './client.ts'
 let client: ReturnType<typeof createApi> | undefined;
 const getClient = () => client ??= createApi(import.meta.env?.VITE_API_BASE_URL || '/api');
 export const api = {
-  recommendations: (query: string, signal?: AbortSignal, context?:RecommendationIntent|null) => getClient().recommendations(query, signal, context),
+  recommendations: (query: string, signal?: AbortSignal, context?:RecommendationIntent|null, openAIConsent?:boolean) =>
+    getClient().recommendations(query, signal, context, openAIConsent),
   suggestions: (signal?:AbortSignal) => getClient().suggestions(signal),
   report:(id:string,input:ReportInput,signal?:AbortSignal)=>getClient().report(id,input,signal),
   async programs(query: string, signal?: AbortSignal) { return new URLSearchParams(query).get('matching')==='1'?getClient().matches(query,signal):getClient().programs(query, signal); },

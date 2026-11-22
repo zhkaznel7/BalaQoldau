@@ -6,6 +6,7 @@ import type { Config } from './config/env.ts';
 import { errorHandler, HttpError } from './middleware/errors.ts';
 import { healthRouter } from './routes/health.ts';
 import { apiRouter } from './api/routes.ts';
+import {createOpenAIInterpreter} from './ai/openai.ts';
 import type { Database } from './api/repository.ts';
 import type { ReadinessCheck } from './db/readiness.ts';
 import { readinessRouter } from './routes/ready.ts';
@@ -58,7 +59,8 @@ export function createApp(config: Config, database?: Database, checkReady: Readi
   app.use(express.json({ limit: '16kb', strict: true, inflate: false }));
   app.use('/api', healthRouter);
   app.use('/api', readinessRouter(checkReady));
-  app.use('/api', apiRouter(config.PROGRAM_REVIEW_DAYS, database));
+  const interpreter = config.OPENAI_API_KEY ? createOpenAIInterpreter(config.OPENAI_API_KEY, config.OPENAI_MODEL) : undefined;
+  app.use('/api', apiRouter(config.PROGRAM_REVIEW_DAYS, database, interpreter, config.NODE_ENV === 'development'));
   app.use((_request, _response, next) => next(new HttpError(404, 'NOT_FOUND', 'Route not found.')));
   app.use(errorHandler);
   return app;

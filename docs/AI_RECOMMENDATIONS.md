@@ -5,7 +5,32 @@ catalog using a supervised Kazakh and Russian category classifier. Model v1 uses
 character 3–5-grams and L2-regularized multinomial logistic regression. Node loads the
 versioned weights once and runs inference locally on the backend CPU. Deploy the complete
 backend `dist` directory, including `dist/ai/category-model.json`. The assistant needs
-the normal database connection. It has no model API key or external inference service.
+the normal database connection. Provider consent is separate from local search consent.
+
+## Optional OpenAI enhancement
+
+Set `OPENAI_API_KEY` in the backend's local ignored `.env` or inject it through a
+backend secret manager. `OPENAI_MODEL` defaults to `gpt-5.4-nano` and must support
+Chat Completions and Structured Outputs. Restart the
+backend. Start `npm.cmd run dev --prefix backend` and
+`npm.cmd run dev --prefix balaqoldau` in separate terminals, then open
+`/ai-assistant?lang=kk` or `/ai-assistant?lang=ru` and select the OpenAI opt-in.
+
+The SDK sends up to 24 canonical search and relation cues on turns that benefit
+from interpretation. It sends zero requests for local-only, cue-free, or
+deterministically complete turns that need no activity clarification. Each
+provider-assisted turn uses one request, up to 128 completion tokens, a
+four-second timeout, zero retries and `store: false`. The provider selects a
+structured intent and response style. The UI supplies localized wording and renders
+program facts and limitations directly from the matcher. Only the current message's
+canonical cues cross the provider boundary. Normalized conversation context is
+merged on the backend. Neither raw messages nor program records are sent to OpenAI.
+Review provider retention terms before offering this opt-in publicly.
+
+Opt in through the optional `openAIConsent: true` request field. A successful
+provider turn adds `provider: "openai"` and a bounded `style` value. An unavailable
+provider adds `provider: "unavailable"` while local matching or clarification
+continues. A provider-assisted club search can ask `followUp: "need"`.
 
 ## Supported questions
 
@@ -38,11 +63,21 @@ with a nonblank question up to 400 characters and no query-string parameters.
 Send `context: null` to start a conversation or send the previous normalized
 `intent` object to continue. The nullable fields are `age`, `region`, `need`,
 and `category`. Conversation responses add `followUp`, which is `category`,
-`region`, `age`, `clarify`, or `null` for a completed search. An empty completed
+`region`, `age`, `need`, `clarify`, or `null` for a completed search. An empty completed
 search offers a link to browse that category. A missing database connection
 returns `503 AI_UNAVAILABLE` when the request is ready to search.
-The `X-Recommendation-Mode` header reports `explicit`, `model`, `clarification`, or
-`rules-fallback`.
+The `X-Recommendation-Mode` header reports `explicit`, `model`, `clarification`,
+`rules-fallback`, or `openai`.
+
+In development, inspect the POST response in the browser Network panel.
+`X-Recommendation-Provider: openai` confirms a validated provider reply.
+`skipped-no-consent`, `skipped-deterministic`, and `skipped-no-cues` indicate
+that no provider call was needed or authorized. `fallback-unconfigured` means
+no key was available to the running server. `fallback-auth`,
+`fallback-quota-or-rate-limit`, and `fallback-error` indicate a provider attempt
+that returned to local handling. The existing mode header identifies the local
+classifier, rules, or clarification path. The development header contains only
+fixed reason codes.
 
 `GET /api/ai/suggestions` returns up to one age and region pair per category
 from currently published, source-verified records inside the same freshness
