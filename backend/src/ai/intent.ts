@@ -33,14 +33,14 @@ const categories = {
   clubs: /^(?:үйірме[а-яәіңғүұқөһ]*|круж(?:ок|к[а-я]+))$/u,
 } as const;
 
-type Intent = {
+export type Intent = {
   age: number | null;
   region: keyof typeof regions | null;
   need: keyof typeof needs | null;
   category: keyof typeof categories | null;
 };
 
-const clarification: Intent = {age: null, region: null, need: null, category: null};
+export const clarification: Intent = {age: null, region: null, need: null, category: null};
 const regionAliases = new Map<string, keyof typeof regions>(
   (Object.keys(regions) as (keyof typeof regions)[]).flatMap(region =>
     regions[region].map(alias => [alias, region] as const)),
@@ -67,7 +67,7 @@ function labelFor<K extends string>(labels: Record<K, RegExp>, word: string): K 
   return (Object.keys(labels) as K[]).find(key => labels[key].test(word));
 }
 
-export function extractIntent(query: string): Intent {
+export function parseIntentRules(query: string): Intent | null {
   const words = query.normalize('NFC').toLowerCase()
     .replace(/\S+@\S+|(?:https?:\/\/|www\.)\S+/gu, ' ')
     .replace(/(\d)\s*([-–—])\s*(?=\d)/gu, '$1$2')
@@ -87,7 +87,7 @@ export function extractIntent(query: string): Intent {
     const following = index + (phrase || age !== undefined ? 2 : 1);
     if ((region || age !== undefined || need || category) &&
         (exclusions.has(words[index - 1] ?? '') || ['емес', 'жоқ'].includes(words[following] ?? ''))) {
-      return clarification;
+      return null;
     }
     if (age !== undefined) ages.add(age);
     if (region) locations.add(region);
@@ -99,7 +99,7 @@ export function extractIntent(query: string): Intent {
   const birth = /(?:^| )(?:бала туған(?:да|нан)|бала дүниеге келгенде|при рождени[иия] (?:ребенка|ребёнка)|на рождени[еи] (?:ребенка|ребёнка))(?: |$)/u;
   if (types.has('benefits') && birth.test(words.join(' '))) ages.add(0);
   if (ages.has(NaN) || ages.size > 1 || locations.size > 1 || support.size > 1 || types.size > 1) {
-    return clarification;
+    return null;
   }
   return {
     age: ages.values().next().value ?? null,
@@ -107,4 +107,13 @@ export function extractIntent(query: string): Intent {
     need: support.values().next().value ?? null,
     category: types.values().next().value ?? null,
   };
+}
+
+export function hasUnresolvedCategoryConstraint(query: string): boolean {
+  const words = query.normalize('NFC').toLowerCase().match(/[\p{L}\p{M}]+/gu) ?? [];
+  return /(?:^| )(?:или|немесе|кроме|вместо|емес|не (?:хочу|нужен|нужна|нужно|нужны|интересуют))(?: |$)/u.test(words.join(' '));
+}
+
+export function extractIntent(query: string): Intent {
+  return parseIntentRules(query) ?? clarification;
 }

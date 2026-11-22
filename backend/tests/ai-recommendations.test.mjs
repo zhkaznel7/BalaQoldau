@@ -24,10 +24,27 @@ test('ambiguous input asks for clarification before searching; missing catalog i
   const url = await endpoint(t);
   const clarification = await post(url, {...input, query: 'Алматы или Астана, ребёнку 7 лет'});
   assert.equal(clarification.status, 200);
+  assert.equal(clarification.headers.get('x-recommendation-mode'), 'clarification');
   assert.deepEqual(await clarification.json(), {intent: emptyIntent, data: []});
   const unavailable = await post(url, input);
   assert.equal(unavailable.status, 503);
   assert.equal((await unavailable.json()).error.code, 'AI_UNAVAILABLE');
+});
+
+test('an indirect category prediction filters the catalog without sending the question to SQL', async t => {
+  const query = 'Государство перечисляет деньги семье новорождённого?';
+  let calls = 0;
+  const url = await endpoint(t, {async query(_sql, params) {
+    calls++;
+    assert.equal(params[0], 'benefits');
+    assert.ok(!params.includes(query));
+    return {rows: [{total: 0, data: []}]};
+  }});
+  const result = await post(url, {query, consent: true});
+  assert.equal(result.status, 200);
+  assert.equal(result.headers.get('x-recommendation-mode'), 'model');
+  assert.deepEqual(await result.json(), {intent: {...emptyIntent, category:'benefits'}, data:[]});
+  assert.equal(calls, 1);
 });
 
 test('public assistant is bounded and sends only canonical filters to the catalog', async t => {
